@@ -59,8 +59,7 @@ for value in tqdm(values, desc="Generating iP dataset"):
                 G = graph_tools.combine_graphs([graph_tools.get_graph_from_uniprot_id(uniprot_id), graph_tools.get_graph_from_smiles_string(SMILES)])
                 G.y = np.array([activity], dtype=np.float64)
 
-                graph_tools.save_graph(G, f"data/iP_data/{uniprot_ids_split[uniprot_id]}/iP_{idx}.h5")
+                graph_tools.save_graph(G, f"data/iP_data/{uniprot_ids_split[uniprot_id]}/{idx}.h5")
             except Exception as e:
                 print(e)
         idx += 1
-

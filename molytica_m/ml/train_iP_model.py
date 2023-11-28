@@ -1,6 +1,6 @@
 from tensorflow.keras.callbacks import ModelCheckpoint
-from molytica_m.data_tools import dataset_tools
 from molytica_m.ml.iP_model import create_iP_model
+from molytica_m.data_tools import dataset_tools
 
 model = create_iP_model()
 model.compile(optimizer="adam", loss="mean_squared_error", metrics=['mean_squared_error'])
