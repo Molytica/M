@@ -106,9 +106,9 @@ def evaluate_edges(edge_list, temperature, therapeutic_goal, model, n_rep_avg, i
     total_cost = 0
     tuples = set()
     for edge in tqdm(edge_list, desc="Evaluating PPI inhibitions", unit="iPPIs"):
-        iPPI_helpfullness, cost = evaluate_edge_helpfullness(edge, temperature, therapeutic_goal, n_rep_avg, client, model)
+        iPPI_helpfullness, cost = evaluate_edge_helpfullness([edge[0], edge[1]], temperature, therapeutic_goal, n_rep_avg, client, model)
         total_cost += cost
-        tuples.add((edge[0], edge[1], iPPI_helpfullness))
+        tuples.add((edge[0], edge[1], edge[2], iPPI_helpfullness))
         print("Total cost is {} dollars".format(total_cost))
 
     print("Total cost for edge list was {} dollars".format(total_cost))
@@ -122,17 +122,19 @@ def evaluate_edges(edge_list, temperature, therapeutic_goal, model, n_rep_avg, i
     return json_data
 
 def evaluate_nodes(node_list, temperature, therapeutic_goal, model, n_rep_avg, interesting_uniprot_ids, search_tree, file_name=None):
+    with open("molytica_m/target_selector/.env", "r") as file:
+        api_key = file.read()
     client = OpenAI(
         # defaults to os.environ.get("OPENAI_API_KEY")
-        api_key="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",
+        api_key=api_key,
     )
 
     total_cost = 0
     tuples = set()
     for node in tqdm(node_list, desc="Evaluating protein inhibitions", unit="iPs"):
-        iP_helpfullness, cost = evaluate_node_helpfullness(node, temperature, therapeutic_goal, n_rep_avg, client, model)
+        iP_helpfullness, cost = evaluate_node_helpfullness(node[0], temperature, therapeutic_goal, n_rep_avg, client, model)
         total_cost += cost
-        tuples.add((node, iP_helpfullness))
+        tuples.add((node[0], node[1], iP_helpfullness))
         print("Total cost is {} dollars".format(total_cost))
 
     print("Total cost for edge list was {} dollars".format(total_cost))
