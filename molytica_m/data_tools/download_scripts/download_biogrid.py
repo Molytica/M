@@ -22,10 +22,10 @@ def download_and_unzip(url, download_path, extract_path):
         return "Error: Unable to download the file."
 
 # URL of the ZIP file
-url = "https://downloads.thebiogrid.org/Download/BioGRID/Release-Archive/BIOGRID-4.4.227/BIOGRID-ALL-4.4.227.tab3.zip"
+url = "https://downloads.thebiogrid.org/Download/BioGRID/Release-Archive/BIOGRID-4.4.227/BIOGRID-ORGANISM-4.4.227.tab3.zip"
 
 # Path to save the downloaded ZIP file
-download_path = "data/BIOGRID-ALL-4.4.227.tab3.zip"
+download_path = "data/BIOGRID-ORGANISM-4.4.227.tab3.zip"
 
 # Path to extract the contents of the ZIP file
 extract_path = "data/uzipped_biogrid"
