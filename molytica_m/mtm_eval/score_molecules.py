@@ -17,7 +17,7 @@ for smiles in dataset_tools.get_smiles_from_iPPI_DB():
     for iP_tuple in iP_tuples:
         G = graph_tools.combine_graphs([graph_tools.get_graph_from_uniprot_id(iP_tuple[0]),
                                         graph_tools.get_graph_from_smiles_string(smiles)])
-        pred = iP_model.predict(G.x, G.a, np.zeros(G.n_nodes))
+        pred = iP_model.predict(dataset_tools.get_predict_loader([G], batch_size=1))
         smiles_score += -pred[0][0] / 14 * iP_tuple[1] # Divide by 14 to roughly normalize it against the iPPI values (around 0.5)
     
     
@@ -25,7 +25,7 @@ for smiles in dataset_tools.get_smiles_from_iPPI_DB():
         G = graph_tools.combine_graphs([graph_tools.get_graph_from_uniprot_id(iPPI_tuple[0]),
                                         graph_tools.get_graph_from_uniprot_id(iPPI_tuple[1]),
                                         graph_tools.get_graph_from_smiles_string(smiles)])
-        pred = iP_model.predict(G.x, G.a, np.zeros(G.n_nodes))
+        pred = iPPI_model.predict(dataset_tools.get_predict_loader([G], batch_size=1))
         smiles_score += (pred[0][0] - 0.5) * iP_tuple[2]
     
     smiles_scores[smiles] = smiles_score
