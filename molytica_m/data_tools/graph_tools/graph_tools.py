@@ -13,6 +13,7 @@ import numpy as np
 import random
 import h5py
 import gzip
+import tqdm
 import os
 
 atom_type_to_float = {
@@ -306,3 +307,20 @@ def get_subgraph_nodes_from_edgelist(edge_list):
     subgraph_node_sets = list(subgraphs.values())
     
     return subgraph_node_sets
+
+def save_graphs(PPI_molecules, save_path, split_key):
+    skipped = 0
+    idx = -1
+    for key in tqdm(sorted(list(PPI_molecules.keys())), desc="Generating and saving data", unit="c_graphs"):
+        idx += 1
+        try:
+            iPPI = PPI_molecules[key]
+            file_name = os.path.join(save_path, split_key, f'{idx}_{split_key}.h5')
+
+            G = combine_graphs([get_graph_from_uniprot_id(iPPI['proteins'][0]),
+                                        get_graph_from_uniprot_id(iPPI['proteins'][0]),
+                                        get_graph_from_smiles_string(iPPI['molecule'])])
+            G.y = np.array([iPPI["iPPI"]])
+            save_graph(G, file_name)
+        except:
+            skipped += 1
