@@ -13,7 +13,7 @@ import numpy as np
 import random
 import h5py
 import gzip
-import tqdm
+from tqdm import tqdm
 import os
 
 atom_type_to_float = {
