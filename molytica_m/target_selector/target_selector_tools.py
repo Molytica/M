@@ -96,9 +96,11 @@ def evaluate_node_helpfullness(node, temperature, therapeutic_goal, n_rep_avg, c
     return iP_helpfullness, total_cost
 
 def evaluate_edges(edge_list, temperature, therapeutic_goal, model, n_rep_avg, interesting_uniprot_ids, search_tree, file_name=None):
+    with open("molytica_m/target_selector/.env") as file:
+        api_key = file.read()
     client = OpenAI(
         # defaults to os.environ.get("OPENAI_API_KEY")
-        api_key="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",
+        api_key=api_key,
     )
 
     total_cost = 0
