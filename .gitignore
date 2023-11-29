@@ -1,2 +1,7 @@
 data/
 .env
+cpython/
+__pycache__/
+*.pyc
+*.cpython*
+*pycache*

@@ -1,7 +1,8 @@
-import tensorflow as tf
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Dense, Dropout, concatenate
+from tensorflow.keras.layers import Input, Dense, Dropout
 from spektral.layers import GCNConv, GlobalAvgPool
+from tensorflow.keras.models import Model
+from keras.models import load_model
+import tensorflow as tf
 
 def create_iP_model(n_features=9):
     # Inputs for protein 1
@@ -17,7 +18,6 @@ def create_iP_model(n_features=9):
     gc1 = GCNConv(256, activation='relu', name='gcn_conv_2')([gc1, adj_input])
     gc1 = Dropout(dropout_rate)(gc1)
 
-
     pool = GlobalAvgPool()([gc1, segment_ids])
 
     # Final prediction layer
@@ -29,6 +29,9 @@ def create_iP_model(n_features=9):
                   outputs=output)
 
     return model
+
+def get_trained_iP_model():
+    return load_model("molytica_m/ml/iP_model.h5", custom_objects={'GCNConv': GCNConv, 'GlobalAvgPool': GlobalAvgPool})
 
 def main():
     model = create_iP_model()

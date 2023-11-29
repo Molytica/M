@@ -3,6 +3,7 @@ from spektral.data import DisjointLoader
 from spektral.data import Dataset
 from tqdm import tqdm
 import random
+import json
 import os
 
 class CustomDataset(Dataset):
@@ -20,6 +21,23 @@ class CustomDataset(Dataset):
             graphs.append(graph_tools.load_graph(os.path.join(self.data_folder, graph_file)))
 
         return graphs
+    
+class PredictDataset(Dataset):
+    def __init__(self, graphs, **kwargs):
+        self.graphs = graphs
+        super().__init__(**kwargs)
+
+    def read(self):
+        return self.graphs
+
 
 def get_disjoint_loader(data_folder, batch_size, epochs=None):
     return DisjointLoader(CustomDataset(data_folder), batch_size=batch_size, **{ 'epochs': epochs } if epochs is not None else {})
+
+def get_predict_loader(graphs, batch_size):
+    return DisjointLoader(PredictDataset(graphs=graphs), batch_size=batch_size)
+
+def get_smiles_from_iPPI_DB():
+    with open("molytica_m/data_tools/iPPI-DB.json", "r") as file:
+        json_data = json.load(file)
+    return [x["SMILES"] for x in json_data.values()]
