@@ -43,4 +43,4 @@ print(set(uniprots["train"]) & set(uniprots["val"]) & set(uniprots["test"])) # C
 
 for key in nodes.keys():
     PPI_molecules = interactome_tools.get_PPI_molecules(DLiP_ids[key], DLiP_data, af_uniprots)
-    interactome_tools.save_graphs(PPI_molecules, save_path, key)
+    graph_tools.save_graphs(PPI_molecules, save_path, key)
