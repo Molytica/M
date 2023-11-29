@@ -1,3 +1,6 @@
+from molytica_m.data_tools.graph_tools import interactome_tools
+from scipy.sparse.csgraph import connected_components
+from molytica_m.data_tools import alpha_fold_tools
 from scipy.sparse import block_diag
 from scipy.spatial import cKDTree
 from scipy.sparse import csr_matrix
@@ -5,8 +8,9 @@ from spektral.data import Graph
 from rdkit.Chem import AllChem
 from Bio.PDB import PDBParser
 from rdkit import Chem
+import networkx as nx
 import numpy as np
-import numpy as np
+import random
 import h5py
 import gzip
 import os
@@ -177,3 +181,128 @@ def load_graph(file_path):
     graph = Graph(x=features, a=adjacency, y=label)
 
     return graph
+
+def get_neighbors_from_uniprots(edge_list, uniprot_ids, n_step_neighbors=3):
+    # Create a graph from the edge list
+    G = nx.Graph()
+    G.add_edges_from(edge_list)
+    
+    # Find all neighbors for each UniProt ID up to n_neighbors away
+    uniprot_edges_of_n_neighbors = []
+    for uniprot_id in uniprot_ids:
+        if uniprot_id in G:
+            # Get all nodes within n_neighbors hops from uniprot_id
+            neighbors = nx.single_source_shortest_path_length(G, uniprot_id, cutoff=n_step_neighbors)
+            # Get edges between uniprot_id and its neighbors
+            for neighbor, distance in neighbors.items():
+                if distance > 0:  # Exclude self-loops
+                    uniprot_edges_of_n_neighbors.append((uniprot_id, neighbor))
+    
+    return uniprot_edges_of_n_neighbors
+
+def get_only_unique(edge_list):
+    unique_pairs = list(set(tuple(sorted(pair)) for pair in edge_list))
+    unique_list = [list(pair) for pair in unique_pairs]
+    return unique_list
+
+def both_in_uniprot_list(edge, uniprot_list): # AlphaFold
+    if edge[0] in uniprot_list and edge[1] in uniprot_list:
+        return True
+    return False
+
+def extract_unique_triplets(data):
+    unique_triplets = []
+    for triplet in data:
+        if triplet not in unique_triplets:
+            unique_triplets.append(triplet)
+    return unique_triplets
+
+def get_edges_from_tree(tree_n: list, interesting_uniprot_ids: list):
+    interactome_edge_list = interactome_tools.get_HuRI_table_as_uniprot_edge_list()
+    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+    edges_to_evaluate = []
+
+    step = 0
+    for n in tree_n:
+        step += 1
+        step_edges = get_neighbors_from_uniprots(interactome_edge_list, interesting_uniprot_ids, n_step_neighbors=step)
+        print(step_edges)
+        step_edges = get_only_unique(step_edges) # Might already be unique but double check
+        step_edges = [[edge[0], edge[1], step] for edge in step_edges if both_in_uniprot_list(edge, af_uniprots)] # Filter only AF edges (because of structure data limitation)
+        print(step_edges)
+        random.shuffle(step_edges)
+
+        if n is not None and n < len(step_edges): # If n, sample, else take all edges
+            step_edges = random.sample(step_edges, n)
+        
+        edges_to_evaluate += step_edges
+
+    print(edges_to_evaluate)
+    unique_triplets = extract_unique_triplets(edges_to_evaluate)
+    return unique_triplets
+
+def get_nodes_from_tree(tree_n: list, interesting_uniprot_ids: list):
+    interactome_edge_list = interactome_tools.get_HuRI_table_as_uniprot_edge_list()
+    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+    nodes_to_evaluate = set()
+
+    step = 0
+    for n in tree_n:
+        step += 1
+        step_edges = get_neighbors_from_uniprots(interactome_edge_list, interesting_uniprot_ids, n_step_neighbors=step)
+        step_edges = get_only_unique(step_edges)  # Ensure edges are unique
+        step_edges = [[edge[0], edge[1], step] for edge in step_edges if both_in_uniprot_list(edge, af_uniprots)]  # Filter only AF edges
+        # Extract unique nodes from the step_edges
+        unique_nodes = set()
+
+        for item in step_edges:
+            unique_nodes.add((item[1], item[2]))
+        print(unique_nodes)
+        # Randomly sample n nodes if n is not None, else take all nodes
+        if n is not None and n < len(unique_nodes):
+            sampled_nodes = set(random.sample(unique_nodes, n))
+        else:
+            sampled_nodes = unique_nodes
+
+        nodes_to_evaluate.update(sampled_nodes)
+
+    return list(nodes_to_evaluate)
+
+
+def get_subgraph_nodes_from_edgelist(edge_list):
+    # Create a set of all nodes
+    nodes = set(node for edge in edge_list for node in edge)
+    # Create a mapping from node names to integers
+    node_to_idx = {node: idx for idx, node in enumerate(nodes)}
+    # Inverse mapping to retrieve node names from indices
+    idx_to_node = {idx: node for node, idx in node_to_idx.items()}
+    
+    # Initialize lists to store the edges in terms of indices
+    data = []
+    rows = []
+    cols = []
+    
+    # Populate the edge index lists
+    for edge in edge_list:
+        src, dst = edge
+        rows.append(node_to_idx[src])
+        cols.append(node_to_idx[dst])
+        data.append(1)  # Assuming unweighted graph, use 1 as the placeholder for edge existence
+    
+    # Number of nodes
+    n_nodes = len(nodes)
+    # Create the CSR matrix
+    csr_graph = csr_matrix((data, (rows, cols)), shape=(n_nodes, n_nodes))
+    
+    # Find the connected components
+    n_components, labels = connected_components(csgraph=csr_graph, directed=False, return_labels=True)
+    
+    # Group node indices by their component label
+    subgraphs = {i: set() for i in range(n_components)}
+    for node_idx, component_label in enumerate(labels):
+        subgraphs[component_label].add(idx_to_node[node_idx])
+    
+    # Convert the dictionary to a list of sets of node names
+    subgraph_node_sets = list(subgraphs.values())
+    
+    return subgraph_node_sets
