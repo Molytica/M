@@ -34,8 +34,8 @@ class PredictDataset(Dataset):
 def get_disjoint_loader(data_folder, batch_size, epochs=None):
     return DisjointLoader(CustomDataset(data_folder), batch_size=batch_size, **{ 'epochs': epochs } if epochs is not None else {})
 
-def get_predict_loader(graphs, batch_size):
-    return DisjointLoader(PredictDataset(graphs=graphs), batch_size=batch_size)
+def get_predict_loader(graphs, batch_size, epochs=None):
+    return DisjointLoader(PredictDataset(graphs=graphs), batch_size=batch_size, **{ 'epochs': epochs } if epochs is not None else {})
 
 def get_smiles_from_iPPI_DB():
     with open("molytica_m/data_tools/iPPI-DB.json", "r") as file:
