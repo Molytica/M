@@ -1,6 +1,7 @@
+from molytica_m.data_tools import gpt_tools
+from bs4 import BeautifulSoup, Comment
 import pandas as pd
 import requests
-from bs4 import BeautifulSoup, Comment
 import time
 
 df = pd.read_csv("molytica_m/mtm_eval/molecule_evaluations.csv")
@@ -56,10 +57,21 @@ def search_pubchem_by_smiles(smiles):
 
 df_score_sorted = df.sort_values(by='Score', ascending=False)
 
-info_column = {}
+# Initialize 'description' column with empty strings
+df_score_sorted['description'] = [''] * df_score_sorted.shape[0]
 
-for idx, row in df_score_sorted.iterrows():
-    smiles_data = {"smiles": row[2], "id": row[0], "smiles_score": row[3], "description": get_molecule_info(search_pubchem_by_smiles(row[2]))}
-    print(smiles_data["description"])
+# Fetch descriptions for only the first ten rows
+for idx, row in df_score_sorted.head(10).iterrows():
+    cid = search_pubchem_by_smiles(row['Molecule'])  # Replace 'SMILES' with the actual column name
+    mol_info = get_molecule_info(cid)
+    description = gpt_tools.ask_gpt(str(mol_info), "Describe the function of this molecule based on litterature and your judgement.", "gpt-3.5-turbo-1106", 0.2)
+    df_score_sorted.at[idx, 'description'] = description
+    print("Done.")
+
+# Now, save the DataFrame to CSV
+df_score_sorted.to_csv("molytica_m/mtm_eval/molecule_evaluations.csv")
+
+
+    
 
 

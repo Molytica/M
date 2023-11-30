@@ -3,8 +3,8 @@ from openai import OpenAI
 def ask_gpt(input_text, prompt, model, temperature):
     with open("molytica_m/data_tools/.env") as file:
         api_key = file.read()
+    
     client = OpenAI(
-        # defaults to os.environ.get("OPENAI_API_KEY")
         api_key=api_key,
     )
 
