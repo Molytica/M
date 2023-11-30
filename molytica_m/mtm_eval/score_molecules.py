@@ -5,6 +5,7 @@ from molytica_m.data_tools import dataset_tools
 from molytica_m.ml import iP_model, iPPI_model
 from spektral.data import Graph
 from tqdm import tqdm
+import pandas as pd
 import numpy as np
 import json
 
@@ -39,7 +40,7 @@ def get_iPPI_graph(args):
 
 
 smiles_scores = {}
-smiles_batch = 100
+smiles_batch = 20
 
 smiles_added = 0
 iP_batch_for_smiles = []
@@ -73,13 +74,13 @@ for smiles in tqdm(smiles_list, desc="Scoring Molecules"):
             iP_batch_graphs = list(executor.map(get_iP_graph, iP_batch_for_smiles))
         iP_batch_filtered = [x for x in iP_batch_graphs if x is not None]
         iP_is_none += [True if x is not None else False for x in iP_batch_graphs]
-        iP_preds += iP_model.predict(dataset_tools.get_predict_loader(iP_batch_filtered, batch_size=1, epochs=1)) 
+        iP_preds += [float(x[0]) for x in iP_model.predict(dataset_tools.get_predict_loader(iP_batch_filtered, batch_size=1, epochs=1))]
 
         with ProcessPoolExecutor() as executor:
             iPPI_batch_graphs = list(executor.map(get_iPPI_graph, iPPI_batch_for_smiles))
         iPPI_batch_filtered = [x for x in iPPI_batch_graphs if x is not None]
         iPPI_is_none += [True if x is not None else False for x in iPPI_batch_graphs]
-        iPPI_preds += iPPI_model.predict(dataset_tools.get_predict_loader(iPPI_batch_filtered, batch_size=1, epochs=1))
+        iPPI_preds += [float(x[0]) for x in iPPI_model.predict(dataset_tools.get_predict_loader(iPPI_batch_filtered, batch_size=1, epochs=1))]
 
         iP_batch_for_smiles = []
         iPPI_batch_for_smiles = []
@@ -104,3 +105,10 @@ for idx, graph in enumerate(iPPI_is_none):
 
 with open("molytica_m/mtm_eval/molecule_scores.json", "w") as file:
     json.dump(smiles_scores, file)
+
+data = [(idx, key, value) for idx, (key, value) in enumerate(smiles_scores.items())]
+
+# Creating DataFrame
+df = pd.DataFrame(data, columns=["ID", "Molecule", "Score"])
+
+df.to_csv("molytica_m/mtm_eval/molecule_evaluations.csv")
