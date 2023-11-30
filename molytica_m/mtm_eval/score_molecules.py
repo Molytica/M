@@ -56,7 +56,7 @@ smiles_for_iP_preds = []
 smiles_for_iPPI_preds = []
 
 smiles_list = dataset_tools.get_smiles_from_iPPI_DB()
-for smiles in tqdm(smiles_list[:40], desc="Scoring Molecules"):
+for smiles in tqdm(smiles_list[:20], desc="Scoring Molecules"):
     smiles_score = 0
 
     for iP_tuple in iP_tuples:
@@ -88,19 +88,24 @@ for smiles in tqdm(smiles_list[:40], desc="Scoring Molecules"):
 
     smiles_scores[smiles] = smiles_score
 
+
+print(iP_preds)
+print(iPPI_preds)
 # Correcting the indexing in the for loops
 pred_idx = 0
 for idx, graph in enumerate(iP_is_none):
     smiles = smiles_for_iP_preds[idx]
     if graph: # If there was data for this item
-        smiles_scores[smiles] += -iP_preds[pred_idx] / 30 * iP_tuples[2]
+        print(type(iP_preds[pred_idx]))
+        print(type(iP_tuples[idx % len(iP_tuples)][2]))
+        smiles_scores[smiles] += -iP_preds[pred_idx] / 30.0 * iP_tuples[idx % len(iP_tuples)][2] # Fix indexing
         pred_idx += 1
 
 pred_idx = 0
 for idx, graph in enumerate(iPPI_is_none):
     smiles = smiles_for_iPPI_preds[idx]
     if graph: # If there was data for this item
-        smiles_scores[smiles] += (iPPI_preds[pred_idx] - 0.5) * iPPI_tuples[3]
+        smiles_scores[smiles] += (iPPI_preds[pred_idx] - 0.5) * iPPI_tuples[idx % len(iPPI_tuples)][3]
         pred_idx += 1
 
 with open("molytica_m/mtm_eval/molecule_scores.json", "w") as file:
