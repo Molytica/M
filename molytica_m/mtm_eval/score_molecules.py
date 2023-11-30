@@ -40,7 +40,7 @@ def get_iPPI_graph(args):
 
 
 smiles_scores = {}
-smiles_batch = 20
+smiles_batch = 40
 
 smiles_added = 0
 iP_batch_for_smiles = []
@@ -56,7 +56,7 @@ smiles_for_iP_preds = []
 smiles_for_iPPI_preds = []
 
 smiles_list = dataset_tools.get_smiles_from_iPPI_DB()
-for smiles in tqdm(smiles_list[:20], desc="Scoring Molecules"):
+for smiles in tqdm(smiles_list, desc="Scoring Molecules"):
     smiles_score = 0
 
     for iP_tuple in iP_tuples:
