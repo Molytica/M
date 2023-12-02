@@ -40,7 +40,7 @@ def get_iPPI_graph(args):
 
 
 smiles_scores = {}
-smiles_batch = 40
+smiles_batch = 2
 
 smiles_added = 0
 iP_batch_for_smiles = []
