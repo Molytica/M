@@ -94,7 +94,7 @@ pred_idx = 0
 for idx, graph in enumerate(iP_is_none):
     smiles = smiles_for_iP_preds[idx]
     if graph: # If there was data for this item
-        smiles_scores[smiles] += -iP_preds[pred_idx] / 30.0 * iP_tuples[idx % len(iP_tuples)][2] # Fix indexing
+        smiles_scores[smiles] += iP_preds[pred_idx] * iP_tuples[idx % len(iP_tuples)][2]
         pred_idx += 1
 
 pred_idx = 0
