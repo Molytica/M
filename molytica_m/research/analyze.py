@@ -19,14 +19,11 @@ smiless = sorted(list(set([x[0][1] for x in iP_result_tuples_list])))
 uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
 score_matrix = np.zeros((len(uniprots), len(smiless)))
 
-tuples_to_iterate = []
+for val in tqdm(iP_result_tuples_list):
+    uniprot = val[0][0]
+    smiles = val[0][1]
+    score = val[1]
 
-for uniprot_idx, uniprot in tqdm(enumerate(uniprots), desc="Loading", total=len(uniprots)):
-    for smiles_idx, smiles in enumerate(smiless):
-        tuples_to_iterate.append((uniprot, smiles))
-        
-with ProcessPoolExecutor() as executor:
-        scores = list(tqdm(executor.map(get_score, tuples_to_iterate), desc="Getting scores", total=len(tuples_to_iterate))) 
+    score_matrix[uniprots.index(uniprot), smiless.index(smiles)] = score
 
-print(score_matrix)
 print(np.count_nonzero(score_matrix))
