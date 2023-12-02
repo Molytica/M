@@ -26,4 +26,6 @@ for val in tqdm(iP_result_tuples_list):
 
     score_matrix[uniprots.index(uniprot), smiless.index(smiles)] = score
 
-print(np.count_nonzero(score_matrix))
+print(np.count_nonzero(score_matrix) / (len(uniprots) * len(smiless)))
+
+print(score_matrix)

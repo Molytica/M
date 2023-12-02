@@ -5,8 +5,8 @@ from molytica_m.data_tools import dataset_tools
 model = create_iP_model()
 model.compile(optimizer="adam", loss="mean_squared_error", metrics=['mean_squared_error'])
 
-disjoint_loader_train = dataset_tools.get_disjoint_loader("data/iP_data/train/", batch_size=50, epochs=100000)
-disjoint_loader_val = dataset_tools.get_disjoint_loader("data/iP_data/val/", batch_size=50)
+disjoint_loader_train = dataset_tools.get_disjoint_loader("data/iP_data/train/", batch_size=30, epochs=100000)
+disjoint_loader_val = dataset_tools.get_disjoint_loader("data/iP_data/val/", batch_size=30)
 
 checkpoint = ModelCheckpoint("molytica_m/ml/iP_model.h5", monitor='val_mean_squared_error', verbose=1, save_best_only=True, mode='min')
 

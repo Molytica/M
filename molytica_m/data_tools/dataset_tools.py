@@ -17,7 +17,8 @@ class CustomDataset(Dataset):
         graph_files = list(sorted(os.listdir(self.data_folder)))
         random.shuffle(graph_files)
 
-        for graph_file in tqdm(graph_files, desc=f"Loading dataset from {self.data_folder}", unit="graphs"):
+        sample = graph_files if len(graph_files) <= 4000 else random.sample(graph_files, 4000)
+        for graph_file in tqdm(sample, desc=f"Loading dataset from {self.data_folder}", unit="graphs"):
             graphs.append(graph_tools.load_graph(os.path.join(self.data_folder, graph_file)))
 
         return graphs
