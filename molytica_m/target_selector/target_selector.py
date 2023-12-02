@@ -5,7 +5,7 @@ import sys
 interesting_uniprots = ["Q01860", "Q06416", "P48431", "O43474"] #OSK (ADD SITR1?)
 #interesting_uniprots = ["Q01860"]
 model = "gpt-4-1106-preview"
-search_tree = [15, 10, 3]
+search_tree = [800, 80, 20]
 temperature = 0.0
 n_rep_avg = 1
 
@@ -21,3 +21,4 @@ if not user_approval:
 print("Proceeding with analysis.")
 json_edges = target_selector_tools.evaluate_edges(edges_to_evaluate, temperature=temperature, therapeutic_goal=therapeutic_goal, model=model, n_rep_avg=n_rep_avg, interesting_uniprot_ids=interesting_uniprots, search_tree=search_tree, file_name="molytica_m/target_selector/GPT4_edges.json")
 json_nodes = target_selector_tools.evaluate_nodes(nodes_to_evaluate, temperature=temperature, therapeutic_goal=therapeutic_goal, model=model, n_rep_avg=n_rep_avg, interesting_uniprot_ids=interesting_uniprots, search_tree=search_tree, file_name="molytica_m/target_selector/GPT4_nodes.json")
+print(f"total cost was of course twice this, hence {2 * len(edges_to_evaluate) * n_rep_avg * target_selector_tools.get_cost_for_one_eval(model)} USD")
