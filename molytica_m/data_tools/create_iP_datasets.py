@@ -1,9 +1,11 @@
 from molytica_m.data_tools.alpha_fold_tools import get_alphafold_uniprot_ids
 from molytica_m.data_tools.graph_tools import graph_tools
+from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
 import numpy as np
 import random
 import json
+import os
 
 with open("molytica_m/data_tools/iPPI-DB.json", "r") as file:
     json_data = json.load(file)
@@ -43,9 +45,39 @@ for i, uniprot_id in enumerate(uniprots):
 alphafold_uniprot_ids = get_alphafold_uniprot_ids()
 idx = 0
 
+def create_graph_pair(tuple):
+    uniprot_id, SMILES, activity, idx = tuple
+    try:
+        G = graph_tools.combine_graphs([graph_tools.get_graph_from_uniprot_id(uniprot_id), graph_tools.get_graph_from_smiles_string(SMILES)])
+        G.y = np.array([float(activity)/10], dtype=np.float64)
+
+        graph_tools.save_graph(G, f"data/iP_data/{uniprot_ids_split[uniprot_id]}/{idx}.h5")
+        try:
+            graph_tools.load_graph(f"data/iP_data/{uniprot_ids_split[uniprot_id]}/{idx}.h5")
+        except Exception as e:
+            print(e)
+            print("removing file")
+            os.remove(f"data/iP_data/{uniprot_ids_split[uniprot_id]}/{idx}.h5")
+
+        G = graph_tools.combine_graphs([graph_tools.get_graph_from_uniprot_id(random.choice(alphafold_uniprot_ids)), graph_tools.get_graph_from_smiles_string(SMILES)])
+        G.y = np.array([0], dtype=np.float64)
+
+        graph_tools.save_graph(G, f"data/iP_data/{uniprot_ids_split[uniprot_id]}/{idx}_neg.h5")
+        try:
+            graph_tools.load_graph(f"data/iP_data/{uniprot_ids_split[uniprot_id]}/{idx}_neg.h5")
+        except Exception as e:
+            print(e)
+            print("removing file")
+            os.remove(f"data/iP_data/{uniprot_ids_split[uniprot_id]}/{idx}_neg.h5")
+    except Exception as e:
+        print(e)
+
+
+tuples_to_create = []
+
 values = list(json_data.values())
 random.shuffle(values)
-for value in tqdm(values, desc="Generating iP dataset"):
+for value in values:
     SMILES = value["SMILES"]
 
     for PPI in value["PPI_VALUES"]:
@@ -55,17 +87,9 @@ for value in tqdm(values, desc="Generating iP dataset"):
 
         if activity_type in ["pIC50 (half maximal inhibitory concentration, -log10)", "pKi (inhibition constant, -log10)"] and uniprot_id in alphafold_uniprot_ids:
             # Use this data! Not other types at the moment
-            try:
-                G = graph_tools.combine_graphs([graph_tools.get_graph_from_uniprot_id(uniprot_id), graph_tools.get_graph_from_smiles_string(SMILES)])
-                G.y = np.array([activity], dtype=np.float64)
-
-                graph_tools.save_graph(G, f"data/iP_data/{uniprot_ids_split[uniprot_id]}/{idx}.h5")
-
-                G = graph_tools.combine_graphs([graph_tools.get_graph_from_uniprot_id(random.choice(alphafold_uniprot_ids)), graph_tools.get_graph_from_smiles_string(SMILES)])
-                G.y = np.array([10000], dtype=np.float64)
-
-                idx += 1
-                graph_tools.save_graph(G, f"data/iP_data/{uniprot_ids_split[uniprot_id]}/{idx}.h5")
-            except Exception as e:
-                print(e)
+            tuples_to_create.append((uniprot_id, SMILES, activity, idx))
         idx += 1
+
+print(tuples_to_create)
+with ProcessPoolExecutor() as executor:
+    results = list(tqdm(executor.map(create_graph_pair, tuples_to_create), desc="Creating iP dataset", total=len(tuples_to_create)))
