@@ -74,13 +74,13 @@ for smiles in tqdm(smiles_list, desc="Scoring Molecules"):
             iP_batch_graphs = list(executor.map(get_iP_graph, iP_batch_for_smiles))
         iP_batch_filtered = [x for x in iP_batch_graphs if x is not None]
         iP_is_none += [True if x is not None else False for x in iP_batch_graphs]
-        iP_preds += [float(x[0]) for x in iP_model.predict(dataset_tools.get_predict_loader(iP_batch_filtered, batch_size=1, epochs=1))]
+        iP_preds += [float(x[0]) for x in iP_model.predict(dataset_tools.get_predict_loader(iP_batch_filtered, batch_size=50, epochs=1))]
 
         with ProcessPoolExecutor() as executor:
             iPPI_batch_graphs = list(executor.map(get_iPPI_graph, iPPI_batch_for_smiles))
         iPPI_batch_filtered = [x for x in iPPI_batch_graphs if x is not None]
         iPPI_is_none += [True if x is not None else False for x in iPPI_batch_graphs]
-        iPPI_preds += [float(x[0]) for x in iPPI_model.predict(dataset_tools.get_predict_loader(iPPI_batch_filtered, batch_size=1, epochs=1))]
+        iPPI_preds += [float(x[0]) for x in iPPI_model.predict(dataset_tools.get_predict_loader(iPPI_batch_filtered, batch_size=50, epochs=1))]
 
         iP_batch_for_smiles = []
         iPPI_batch_for_smiles = []
