@@ -49,10 +49,6 @@ for occ in occurrences.values():
 
 """
 
-
-# Full PPI
-
-
 def get_metadata(af_uniprot):
     file_name = f"data/af_metadata/{af_uniprot}_metadata.h5"
     
@@ -131,6 +127,8 @@ def create_af_atom_clouds():
 
 #create_af_atom_clouds()
 
+
+# Full PPI
 class ProteinInteractionDatasetFull(Dataset):
     def __init__(self):
         pass
