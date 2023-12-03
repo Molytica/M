@@ -62,6 +62,18 @@ def get_metadata(af_uniprot):
     
     return metadata_vector
 
+def get_graph(af_uniprot):
+    file_name = f"data/af_protein_1_dot_5_angstrom_graphs/{af_uniprot}_graph.h5"
+
+    with h5py.File(file_name, 'r') as h5file:
+        edge_index = torch.tensor(h5file['edge_index'][:], dtype=torch.long)
+        edge_attr = torch.tensor(h5file['edge_attr'][:], dtype=torch.float)
+        atom_features = torch.tensor(h5file['atom_features'][:], dtype=torch.float)
+
+    # Create a PyTorch Geometric graph data object
+    graph_data = Data(x=atom_features, edge_index=edge_index, edge_attr=edge_attr)
+
+    return graph_data
 
 def extract_af_protein_graph(arg_tuple):
     input_folder_path, output_folder_path, af_uniprot_id = arg_tuple
@@ -117,9 +129,9 @@ def create_af_atom_clouds():
         results = list(tqdm(executor.map(extract_af_protein_graph, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
     
 
-create_af_atom_clouds()
+#create_af_atom_clouds()
 
-class ProteinInteractionDataset(Dataset):
+class ProteinInteractionDatasetFull(Dataset):
     def __init__(self):
         pass
 
@@ -136,8 +148,8 @@ class ProteinInteractionDataset(Dataset):
         metadata_a = get_metadata(uniprot_A)
         metadata_b = get_metadata(uniprot_B)
 
-        graph_data_a = get_graph_data(uniprot_A)
-        graph_data_b = get_graph_data(uniprot_B)
+        graph_data_a = get_graph(uniprot_A)
+        graph_data_b = get_graph(uniprot_B)
 
         if (uniprot_A, uniprot_B) in edge_list or (uniprot_B, uniprot_A) in edge_list:
             label = 1
