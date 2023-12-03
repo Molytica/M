@@ -22,7 +22,7 @@ def create_iP_model(n_features=9):
 
     # Final prediction layer
     x = Dense(1000, activation='relu', name='dense1')(pool)
-    output = Dense(1, activation='linear', name='iP_output')(x)
+    output = Dense(1, activation='sigmoid', name='iP_output')(x)
 
     # Create the final model
     model = Model(inputs=[node_input, adj_input, segment_ids],
