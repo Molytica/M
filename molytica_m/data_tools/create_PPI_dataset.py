@@ -120,10 +120,6 @@ def create_af_atom_clouds():
 
     with ProcessPoolExecutor() as executor:
         results = list(tqdm(executor.map(extract_af_protein_graph, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
-    
-
-#create_af_atom_clouds()
-
 
 class ProteinInteractionDataset(Dataset):
     def __init__(self, edges):
@@ -176,3 +172,7 @@ def get_data_loader_and_size():
     graph_feature_size = 9
 
     return train_data_loader, val_data_loader, test_data_loader, metadata_vector_size, graph_feature_size
+
+
+if __name__ == "__main__":
+    create_af_atom_clouds()
