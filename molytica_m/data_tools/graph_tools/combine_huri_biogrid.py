@@ -37,6 +37,6 @@ for item in combined_set:
 
 print(len(filtered_set))
 
-with open("molytica_m/data_tools/filtered_no_reverese_duplicates_huri_and_biogrid_uniprot_edges.json", "w") as file:
-    json_data = {"filtered_no_reverese_duplicates_huri_and_biogrid_uniprot_edges": list(filtered_set)}
+with open("molytica_m/data_tools/filtered_no_reverse_duplicates_huri_and_biogrid_uniprot_edges.json", "w") as file:
+    json_data = {"filtered_no_reverse_duplicates_huri_and_biogrid_uniprot_edges": list(filtered_set)}
     json.dump(json_data, file)
