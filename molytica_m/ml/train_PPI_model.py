@@ -22,7 +22,7 @@ loss_function = nn.BCELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop with progress bar
-num_epochs = 1  # Set the number of epochs
+num_epochs = 100000  # Set the number of epochs
 last_ten = []
 val_max_acc = 0
 for epoch in range(num_epochs):
