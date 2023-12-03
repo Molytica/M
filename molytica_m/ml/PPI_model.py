@@ -1,39 +1,48 @@
-import tensorflow as tf
-from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Input, Dense, Dropout, concatenate
-from spektral.layers import GCNConv, GlobalAvgPool
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch_geometric.nn import GCNConv
 
-def create_PPI_model(n_features=9):
-    # Inputs for protein 1
-    node_input = Input(shape=(None, n_features), name='node_input')
-    adj_input = Input(shape=(None, None), dtype=tf.float32, sparse=True, name='adj_input')
-    segment_ids = Input(shape=(None,), dtype=tf.int32, name='segment_ids')
+class ProteinInteractionPredictor(nn.Module):
+    def __init__(self, metadata_vector_size, graph_feature_size):
+        super(ProteinInteractionPredictor, self).__init__()
+        
+        # Metadata processing layers
+        self.fc1 = nn.Linear(metadata_vector_size, 128)
+        self.fc2 = nn.Linear(128, 128)
 
-    dropout_rate = 0.5
-    gc1 = GCNConv(256, activation='relu', name='gcn_conv')([node_input, adj_input])
-    gc1 = Dropout(dropout_rate)(gc1)
-    gc1 = GCNConv(256, activation='relu', name='gcn_conv_1')([gc1, adj_input])
-    gc1 = Dropout(dropout_rate)(gc1)
-    gc1 = GCNConv(256, activation='relu', name='gcn_conv_2')([gc1, adj_input])
-    gc1 = Dropout(dropout_rate)(gc1)
+        # Graph processing layers (using GCN as an example)
+        self.gcn1 = GCNConv(graph_feature_size, 128)
+        self.gcn2 = GCNConv(128, 128)
 
+        # Combining features
+        self.fc_combined = nn.Linear(512, 128)  # Assuming combined features are concatenated
 
-    pool = GlobalAvgPool()([gc1, segment_ids])
+        # Final output layer
+        self.output = nn.Linear(128, 1)
 
-    # Final prediction layer
-    x = Dense(1000, activation='relu', name='dense1')(pool)
-    output = Dense(1, activation='sigmoid', name='PPI_output')(x)
+    def forward(self, metadata_a, metadata_b, graph_data_a, graph_data_b):
+        # Process metadata
+        metadata_a = F.relu(self.fc1(metadata_a))
+        metadata_a = F.relu(self.fc2(metadata_a))
 
-    # Create the final model
-    model = Model(inputs=[node_input, adj_input, segment_ids],
-                  outputs=output)
+        metadata_b = F.relu(self.fc1(metadata_b))
+        metadata_b = F.relu(self.fc2(metadata_b))
 
-    return model
+        # Process graph data
+        x_a, edge_index_a = graph_data_a.x, graph_data_a.edge_index
+        x_b, edge_index_b = graph_data_b.x, graph_data_b.edge_index
 
-def main():
-    model = create_PPI_model()
-    model.summary()
+        x_a = F.relu(self.gcn1(x_a, edge_index_a))
+        x_a = F.relu(self.gcn2(x_a, edge_index_a))
 
-if __name__ == "__main__":
-    main()
+        x_b = F.relu(self.gcn1(x_b, edge_index_b))
+        x_b = F.relu(self.gcn2(x_b, edge_index_b))
 
+        # Combine features
+        combined = torch.cat([metadata_a, metadata_b, x_a, x_b], dim=1)
+        combined = F.relu(self.fc_combined(combined))
+
+        # Output layer
+        out = torch.sigmoid(self.output(combined))
+        return out
