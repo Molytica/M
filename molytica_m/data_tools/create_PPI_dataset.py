@@ -20,23 +20,23 @@ import os
 af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
 n_af_uniprots = len(af_uniprots)
 
-with open("molytica_m/data_tools/filtered_no_reverse_duplicates_huri_and_biogrid_uniprot_edges.json", "r") as file:
-    edge_list = json.load(file)["filtered_no_reverse_duplicates_huri_and_biogrid_uniprot_edges"]
+with open("molytica_m/data_tools/filtered_no_reverse_duplicates_huri_and_biogrid_af_uniprot_edges.json", "r") as file:
+    edge_list = json.load(file)["filtered_no_reverse_duplicates_huri_and_biogrid_af_uniprot_edges"]
 
 random.shuffle(edge_list)
 
 n_edges = len(edge_list)
-split = []
+edges_split = {"train": [], "val": [], "test": []}
 train_frac = 0.8
 val_frac = 0.1
 
 for idx, edge in enumerate(edge_list):
     if idx / n_edges < train_frac:
-        split.append("train")
+        edges_split["train"].append(edge)
     elif idx / n_edges < train_frac + val_frac:
-        split.append("val")
+        edges_split["val"].append(edge)
     else:
-        split.append("test")
+        edges_split["test"].append(edge)
 
 """
 print(n_edges)
@@ -128,20 +128,28 @@ def create_af_atom_clouds():
 #create_af_atom_clouds()
 
 
-# Full PPI
-class ProteinInteractionDatasetFull(Dataset):
-    def __init__(self):
-        pass
+class ProteinInteractionDataset(Dataset):
+    def __init__(self, edges):
+        self.edges = edges
+        self.length = len(edges) * 2 # times two because half are positive and half are negative
 
     def __len__(self):
-        return 20504**2
+        return self.length
 
     def __getitem__(self, idx):
+        
+        if idx % 2 == 0:
+            uniprot_A = self.edges[idx / 2][0]
+            uniprot_B = self.edges[idx / 2][1]
+            label = 1
+        else:
+            uniprot_A = random.choice(af_uniprots)
+            uniprot_B = random.choice(af_uniprots)
 
-        prot_A_uniprot_idx = int(idx / n_af_uniprots)
-        prot_B_uniprot_idx = idx % n_af_uniprots
-        uniprot_A = af_uniprots[prot_A_uniprot_idx]
-        uniprot_B = af_uniprots[prot_B_uniprot_idx]
+            while [uniprot_A, uniprot_B] in edge_list or [uniprot_B, uniprot_A] in edge_list:
+                uniprot_A = random.choice(af_uniprots)
+                uniprot_B = random.choice(af_uniprots)
+            label = 0
 
         metadata_a = get_metadata(uniprot_A)
         metadata_b = get_metadata(uniprot_B)
@@ -149,20 +157,15 @@ class ProteinInteractionDatasetFull(Dataset):
         graph_data_a = get_graph(uniprot_A)
         graph_data_b = get_graph(uniprot_B)
 
-        if (uniprot_A, uniprot_B) in edge_list or (uniprot_B, uniprot_A) in edge_list:
-            label = 1
-        else:
-            label = 0
-
         return metadata_a, metadata_b, graph_data_a, graph_data_b, label
-
-# PPI pos + equal number PPI neg (half positive half negative)
 
 
 def get_data_loader_and_size():
-    data_loader = DataLoader(ProteinInteractionDatasetFull(), batch_size=5, shuffle=True, num_workers=4)
+    train_data_loader = DataLoader(ProteinInteractionDataset(edges_split["train"]), batch_size=2, shuffle=True, num_workers=4)
+    val_data_loader = DataLoader(ProteinInteractionDataset(edges_split["val"]), batch_size=2, shuffle=True, num_workers=4)
+    test_data_loader = DataLoader(ProteinInteractionDataset(edges_split["test"]), batch_size=2, shuffle=True, num_workers=4)
 
     metadata_vector_size = len(get_metadata("A0A0A0MRZ7"))
     graph_feature_size = 9
 
-    return data_loader, metadata_vector_size, graph_feature_size
+    return train_data_loader, val_data_loader, test_data_loader, metadata_vector_size, graph_feature_size
