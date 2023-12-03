@@ -1,6 +1,7 @@
 from molytica_m.data_tools import alpha_fold_tools
 from tqdm import tqdm
 import pandas as pd
+import numpy as np
 import time
 import json
 import h5py
@@ -46,7 +47,7 @@ def binary_encode(full_values_list, values):
 interesting_columns = ["Gene Ontology (GO)"]
 uniprot_metadata = {}
 
-for uniprot in tqdm(af_uniprots, desc="Generating Metadata file"):
+for uniprot in tqdm(af_uniprots, desc="Generating Metadata files"):
     uniprot_data = []
     row = id_mappings[id_mappings['From'] == str(uniprot)].iloc[0]
 
@@ -68,4 +69,4 @@ for uniprot in tqdm(list(uniprot_metadata.keys()), desc="Saving to hdf5"):
 
     # Saving metadata to HDF5 file
     with h5py.File(file_name, 'w') as h5file:
-        h5file.create_dataset('metadata', data=metadata)
+        h5file.create_dataset('metadata', data=np.array(metadata, dtype=float))

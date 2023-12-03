@@ -66,10 +66,7 @@ def get_graph(af_uniprot):
         edge_attr = torch.tensor(h5file['edge_attr'][:], dtype=torch.float)
         atom_features = torch.tensor(h5file['atom_features'][:], dtype=torch.float)
 
-    # Create a PyTorch Geometric graph data object
-    graph_data = Data(x=atom_features, edge_index=edge_index, edge_attr=edge_attr)
-
-    return graph_data
+    return atom_features, edge_index
 
 def extract_af_protein_graph(arg_tuple):
     input_folder_path, output_folder_path, af_uniprot_id = arg_tuple
@@ -139,8 +136,9 @@ class ProteinInteractionDataset(Dataset):
     def __getitem__(self, idx):
         
         if idx % 2 == 0:
-            uniprot_A = self.edges[idx / 2][0]
-            uniprot_B = self.edges[idx / 2][1]
+            idx_half = int(idx / 2)
+            uniprot_A = self.edges[idx_half][0]
+            uniprot_B = self.edges[idx_half][1]
             label = 1
         else:
             uniprot_A = random.choice(af_uniprots)
@@ -154,16 +152,25 @@ class ProteinInteractionDataset(Dataset):
         metadata_a = get_metadata(uniprot_A)
         metadata_b = get_metadata(uniprot_B)
 
-        graph_data_a = get_graph(uniprot_A)
-        graph_data_b = get_graph(uniprot_B)
+        x_a, edge_index_a = get_graph(uniprot_A)
+        x_b, edge_index_b = get_graph(uniprot_B)
 
-        return metadata_a, metadata_b, graph_data_a, graph_data_b, label
+        return (
+            torch.tensor(metadata_a, dtype=torch.float),
+            torch.tensor(metadata_b, dtype=torch.float),
+            torch.tensor(x_a, dtype=torch.float),
+            torch.tensor(edge_index_a, dtype=torch.long),
+            torch.tensor(x_b, dtype=torch.float),
+            torch.tensor(edge_index_b, dtype=torch.long),
+            torch.tensor([label], dtype=torch.float)
+        )
+
 
 
 def get_data_loader_and_size():
-    train_data_loader = DataLoader(ProteinInteractionDataset(edges_split["train"]), batch_size=2, shuffle=True, num_workers=4)
-    val_data_loader = DataLoader(ProteinInteractionDataset(edges_split["val"]), batch_size=2, shuffle=True, num_workers=4)
-    test_data_loader = DataLoader(ProteinInteractionDataset(edges_split["test"]), batch_size=2, shuffle=True, num_workers=4)
+    train_data_loader = DataLoader(ProteinInteractionDataset(edges_split["train"]), batch_size=1, shuffle=True, num_workers=4)
+    val_data_loader = DataLoader(ProteinInteractionDataset(edges_split["val"]), batch_size=1, shuffle=True, num_workers=4)
+    test_data_loader = DataLoader(ProteinInteractionDataset(edges_split["test"]), batch_size=1, shuffle=True, num_workers=4)
 
     metadata_vector_size = len(get_metadata("A0A0A0MRZ7"))
     graph_feature_size = 9
