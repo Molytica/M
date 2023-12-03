@@ -156,6 +156,13 @@ class ProteinInteractionDatasetFull(Dataset):
 
         return metadata_a, metadata_b, graph_data_a, graph_data_b, label
 
-        
-
 # PPI pos + equal number PPI neg (half positive half negative)
+
+
+def get_data_loader_and_size():
+    data_loader = DataLoader(ProteinInteractionDatasetFull(), batch_size=5, shuffle=True, num_workers=4)
+
+    metadata_vector_size = len(get_metadata("A0A0A0MRZ7"))
+    graph_feature_size = 9
+
+    return data_loader, metadata_vector_size, graph_feature_size
