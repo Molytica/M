@@ -82,6 +82,11 @@ def extract_af_protein_graph(arg_tuple):
                     protein_atom_cloud_array.append(atom_data)
     
     protein_atom_cloud_array = np.array(protein_atom_cloud_array)
+    atom_point_cloud_atom_types = protein_atom_cloud_array[:, 0]  # Changed from :1 to 0 for correct indexing
+    n_atom_types = 9
+
+    # One-hot encode the atom types
+    features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int) - 1]
 
     # Create the graph
     graph = graph_tools.csr_graph_from_point_cloud(protein_atom_cloud_array[:, 1:], STANDARD_BOND_LENGTH=1.5)
@@ -94,19 +99,22 @@ def extract_af_protein_graph(arg_tuple):
     with h5py.File(output_file_name, 'w') as h5file:
         h5file.create_dataset('edge_index', data=edge_index)
         h5file.create_dataset('edge_attr', data=edge_attr)
-        h5file.create_dataset('atom_features', data=protein_atom_cloud_array[:, 0])  # Save atom types as features
+        h5file.create_dataset('atom_features', data=features)  # Save atom types as features
     
 
 def create_af_atom_clouds():
     input_folder_path = "data/alpha_fold_data/"
     output_folder_path = "data/af_protein_1_dot_5_angstrom_graphs/"
 
+    if not os.path.exists(output_folder_path):
+        os.makedirs(output_folder_path)
+
     arg_tuples = []
     for af_uniprot_id in af_uniprots:
         arg_tuples.append((input_folder_path, output_folder_path, af_uniprot_id))
 
     with ProcessPoolExecutor() as executor:
-        results = list(tqdm(executor.map(extract_protein_atom_cloud, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
+        results = list(tqdm(executor.map(extract_af_protein_graph, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
     
 
 create_af_atom_clouds()
