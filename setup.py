@@ -10,5 +10,9 @@ setup(
     install_requires=[
         'numpy',
         'pandas',
+        'requests',
+        'spektral',
+        'networkx',
+        
     ],
 )
