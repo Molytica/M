@@ -9,6 +9,7 @@ import sys
 
 # Check if GPU is available and use it; otherwise, use CPU
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("cuda" if torch.cuda.is_available() else "cpu")
 
 train_loader, val_loader, test_loader, metadata_vector_size, graph_feature_size = get_data_loader_and_size()
 
