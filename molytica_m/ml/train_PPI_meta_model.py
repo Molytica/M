@@ -22,8 +22,7 @@ class MetaModel(nn.Module):
     def forward(self, metadata_a, metadata_b, x_a, edge_index_a, x_b, edge_index_b):
 
         outputs = [model(metadata_a, metadata_b, x_a, edge_index_a, x_b, edge_index_b) for model in self.models]
-
-        model_outputs = torch.stack(outputs)
+        model_outputs = torch.stack(outputs, dim=2).squeeze(0)
 
         hidden = F.relu(self.fc1(model_outputs))
         # Output layer
@@ -36,12 +35,12 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train_loader, val_loader, test_loader, metadata_vector_size, graph_feature_size = get_data_loader_and_size()
 
 # Initialize your model
-models = [torch.load("PPI_C_model.pth")]
+models = [torch.load("molytica_m/ml/PPI_C_model.pth"), torch.load("molytica_m/ml/PPI_C_model.pth")]
 
 # Transfer the model to the device
 [model.to(device) for model in models]
 
-metamodel = MetaModel(len(models))
+metamodel = MetaModel(models).to(device)
 
 loss_function = nn.BCELoss()
 optimizer = optim.Adam(metamodel.parameters(), lr=0.001)
