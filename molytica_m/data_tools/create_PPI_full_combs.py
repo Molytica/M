@@ -121,29 +121,19 @@ def create_af_atom_clouds():
     with ProcessPoolExecutor() as executor:
         results = list(tqdm(executor.map(extract_af_protein_graph, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
 
-class ProteinInteractionDataset(Dataset):
-    def __init__(self, edges):
-        self.edges = edges
-        self.length = len(edges) * 2 # times two because half are positive and half are negative
+class InteractomeDataset(Dataset):
+    def __init__(self):
+        pass
 
     def __len__(self):
-        return self.length
+        return n_af_uniprots ** 2
 
     def __getitem__(self, idx):
-        
-        if idx % 2 == 0:
-            idx_half = int(idx / 2)
-            uniprot_A = self.edges[idx_half][0]
-            uniprot_B = self.edges[idx_half][1]
-            label = 1
-        else:
-            uniprot_A = random.choice(af_uniprots)
-            uniprot_B = random.choice(af_uniprots)
+        a_idx = idx % n_af_uniprots
+        b_idx = int(idx / n_af_uniprots)
 
-            while [uniprot_A, uniprot_B] in edge_list or [uniprot_B, uniprot_A] in edge_list:
-                uniprot_A = random.choice(af_uniprots)
-                uniprot_B = random.choice(af_uniprots)
-            label = 0
+        uniprot_A = af_uniprots[a_idx]
+        uniprot_B = af_uniprots[b_idx]
 
         metadata_a = get_metadata(uniprot_A)
         metadata_b = get_metadata(uniprot_B)
@@ -158,20 +148,16 @@ class ProteinInteractionDataset(Dataset):
             torch.tensor(edge_index_a, dtype=torch.long),
             torch.tensor(x_b, dtype=torch.float),
             torch.tensor(edge_index_b, dtype=torch.long),
-            torch.tensor([label], dtype=torch.float)
         )
+    
 
-
-
-def get_data_loader_and_size():
-    train_data_loader = DataLoader(ProteinInteractionDataset(edges_split["train"]), batch_size=1, shuffle=True, num_workers=10)
-    val_data_loader = DataLoader(ProteinInteractionDataset(edges_split["val"]), batch_size=1, shuffle=True, num_workers=10)
-    test_data_loader = DataLoader(ProteinInteractionDataset(edges_split["test"]), batch_size=1, shuffle=True, num_workers=10)
+def get_Interactome_loader():
+    train_data_loader = DataLoader(InteractomeDataset(), batch_size=1, shuffle=True, num_workers=20)
 
     metadata_vector_size = len(get_metadata("A0A0A0MRZ7"))
     graph_feature_size = 9
 
-    return train_data_loader, val_data_loader, test_data_loader, metadata_vector_size, graph_feature_size
+    return train_data_loader, metadata_vector_size, graph_feature_size
 
 
 if __name__ == "__main__":

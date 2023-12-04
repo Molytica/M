@@ -8,7 +8,6 @@ import torch.nn as nn
 import numpy as np
 import torch
 import sys
-import torch
 
 
 class MetaModel(nn.Module):
@@ -35,7 +34,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train_loader, val_loader, test_loader, metadata_vector_size, graph_feature_size = get_data_loader_and_size()
 
 # Initialize your model
-models = [torch.load("molytica_m/ml/PPI_C_model.pth"), torch.load("molytica_m/ml/PPI_C_model.pth")]
+models = [torch.load("molytica_m/ml/PPI_C_model.pth"), torch.load("molytica_m/ml/PPI_S_model.pth")]
 
 # Transfer the model to the device
 [model.to(device) for model in models]
@@ -111,6 +110,6 @@ for epoch in range(num_epochs):
     val_acc = np.mean(val_correct)
     if val_acc > val_max_acc:
         print(f"Accuracy {val_acc} was better than previous best of {val_max_acc}. Saving model.")
-        torch.save(metamodel, 'molytica_m/ml/metamodel.pth')
+        torch.save(metamodel, 'molytica_m/ml/PPI_metamodel.pth')
         val_max_acc = val_acc
 
