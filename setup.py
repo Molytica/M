@@ -16,5 +16,6 @@ setup(
         'biopython',
         'torch',
         'torch_geometric',
+        'openai',
     ],
 )
