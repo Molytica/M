@@ -4,7 +4,6 @@ from molytica_m.data_tools import alpha_fold_tools
 from concurrent.futures import ProcessPoolExecutor
 from molytica_m.data_tools import dataset_tools
 from molytica_m.ml import iP_model, iPPI_model
-from spektral.data import Graph
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
