@@ -5,8 +5,6 @@ __pycache__/*
 *.pyc
 *cpython*
 *pycache*
-*.egg-info/*
+*egg-info*
 __pycache__/
 *.py[cod]
-molytica_m.egg-info/requires.txt
-molytica_m.egg-info/SOURCES.txt
