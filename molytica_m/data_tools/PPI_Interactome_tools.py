@@ -7,7 +7,7 @@ import os
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("cuda" if torch.cuda.is_available() else "cpu")
-model = torch.load("molytica_m/ml/PPI_metamodel.pth").to(device)
+model = torch.load("molytica_m/ml/PPI_S_model.pth").to(device)
 model.eval()
 
 def predict_PPI_value(uniprot_A, uniprot_B):
@@ -46,7 +46,7 @@ def get_PPI_value_single(uniprot_A, uniprot_B):
         return PPI_value
     
 def get_PPI_value(A, B):
-    return get_PPI_value(A, B) + get_PPI_value(B, A) / 2
+    return (get_PPI_value_single(A, B) + get_PPI_value_single(B, A)) / 2
     
 
 if __name__ == "__main__":
