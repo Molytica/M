@@ -9,8 +9,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("cuda" if torch.cuda.is_available() else "cpu")
 model = torch.load("molytica_m/ml/PPI_S_model.pth", map_location=torch.device(device)).to(device)
 model.eval()
-model2 = torch.load("molytica_m/ml/PPI_C_model.pth", map_location=torch.device(device)).to(device)
-model2.eval()
 
 def predict_PPI_value(uniprot_A, uniprot_B):
     metadata_a = create_PPI_dataset.get_metadata(uniprot_A)
@@ -28,20 +26,9 @@ def predict_PPI_value(uniprot_A, uniprot_B):
         torch.tensor(edge_index_b, dtype=torch.long).to(device),
     )
 
-    PPI_value1 = float(output.to("cpu").detach().numpy()[0][0])
+    PPI_value = float(output.to("cpu").detach().numpy()[0][0])
 
-    output = model2(
-        torch.tensor(metadata_a, dtype=torch.float).to(device).unsqueeze(0),
-        torch.tensor(metadata_b, dtype=torch.float).to(device).unsqueeze(0),
-        torch.tensor(x_a, dtype=torch.float).to(device),
-        torch.tensor(edge_index_a, dtype=torch.long).to(device),
-        torch.tensor(x_b, dtype=torch.float).to(device),
-        torch.tensor(edge_index_b, dtype=torch.long).to(device),
-    )
-
-    PPI_value2 = float(output.to("cpu").detach().numpy()[0][0])
-
-    return (PPI_value1 + PPI_value2) / 2
+    return PPI_value
 
 def get_PPI_value_single(uniprot_A, uniprot_B):
     save_path = 'data/PPI_interactome_probabilities/'
