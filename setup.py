@@ -13,6 +13,8 @@ setup(
         'requests',
         'spektral',
         'networkx',
-        
+        'biopython',
+        'torch',
+        'torch_geometric',
     ],
 )
