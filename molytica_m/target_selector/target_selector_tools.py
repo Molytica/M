@@ -142,16 +142,16 @@ def get_latest_nodes_and_edges_evaluation():
 
 
 
-def monte_carlo_simulate(reference_uniprots):
+def get_edges_with_PPI_above_threshold(reference_uniprots, threshold):
     af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
 
     first_neighbors = []
 
     # Get first step neighbors
-    for ref_uniprot in reference_uniprots:
+    for ref_uniprot in tqdm(reference_uniprots, desc="Searching ref_uniprot links"):
         for af_uniprot in tqdm(af_uniprots, desc="Searching af_uniprot links"):
             PPI_prob = PPI_Interactome_tools.get_PPI_value(ref_uniprot, af_uniprot)
-            if PPI_prob > 0.9:
+            if PPI_prob > threshold:
                 first_neighbors.append((af_uniprot, PPI_prob))
     
     return first_neighbors
