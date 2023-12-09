@@ -1,3 +1,5 @@
+from molytica_m.data_tools import PPI_Interactome_tools
+from molytica_m.data_tools import alpha_fold_tools
 from molytica_m.data_tools import gpt_tools
 from openai import OpenAI
 from tqdm import tqdm
@@ -137,3 +139,22 @@ def get_latest_nodes_and_edges_evaluation():
     with open("molytica_m/target_selector/GPT4_edges.json", "r") as file:
         iPPI_tuples = json.load(file)["iPPI_tuples"]
     return iP_tuples, iPPI_tuples
+
+
+
+def monte_carlo_simulate(reference_uniprots):
+    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+
+    first_neighbors = []
+
+    # Get first step neighbors
+    for ref_uniprot in reference_uniprots:
+        for af_uniprot in tqdm(af_uniprots, desc="Searching af_uniprot links"):
+            PPI_prob = PPI_Interactome_tools.get_PPI_value(ref_uniprot, af_uniprot)
+            if PPI_prob > 0.9:
+                first_neighbors.append((af_uniprot, PPI_prob))
+    
+    return first_neighbors
+    
+
+
