@@ -17,5 +17,6 @@ setup(
         'torch',
         'torch_geometric',
         'openai',
+        'scanpy'
     ],
 )
