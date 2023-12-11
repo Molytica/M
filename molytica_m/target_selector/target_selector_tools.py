@@ -2,7 +2,7 @@ from molytica_m.data_tools import PPI_Interactome_tools
 from molytica_m.data_tools import alpha_fold_tools
 from molytica_m.data_tools import gpt_tools
 from openai import OpenAI
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 import pandas as pd
 import json
 
@@ -140,8 +140,6 @@ def get_latest_nodes_and_edges_evaluation():
         iPPI_tuples = json.load(file)["iPPI_tuples"]
     return iP_tuples, iPPI_tuples
 
-
-
 def get_edges_with_PPI_above_threshold(reference_uniprots, threshold):
     af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
 
@@ -150,11 +148,37 @@ def get_edges_with_PPI_above_threshold(reference_uniprots, threshold):
     # Get first step neighbors
     for ref_uniprot in tqdm(reference_uniprots, desc="Searching ref_uniprot links"):
         for af_uniprot in tqdm(af_uniprots, desc="Searching af_uniprot links"):
-            PPI_prob = PPI_Interactome_tools.get_PPI_value(ref_uniprot, af_uniprot)
+            PPI_prob = PPI_Interactome_tools.get_ppi_prob(ref_uniprot, af_uniprot)
+            if not PPI_prob:
+                PPI_prob = PPI_Interactome_tools.predict_PPI_prob_bidirectional(ref_uniprot, af_uniprot)
             if PPI_prob > threshold:
                 first_neighbors.append((af_uniprot, PPI_prob))
     
     return first_neighbors
     
+def get_top_edges(ref_prots, threshold, edge_limit):
+    all_edges = []
 
+    # Step 1: Get all edges with probabilities for ref_prots
+    for ref_prot in ref_prots:
+        neighbors = get_edges_with_PPI_above_threshold([ref_prot], threshold)
+        for neighbor, prob in neighbors:
+            all_edges.append((ref_prot, neighbor, prob))
 
+    # Step 2: Sort edges by probability and take top edges
+    all_edges.sort(key=lambda x: x[2], reverse=True)
+    top_first_step_edges = all_edges[:edge_limit]
+
+    top_second_step_edges = []
+
+    # Step 3: For each top edge, repeat the process for its neighbor
+    for _, neighbor, _ in top_first_step_edges:
+        second_step_neighbors = get_edges_with_PPI_above_threshold([neighbor], threshold)
+        for second_neighbor, prob in second_step_neighbors:
+            top_second_step_edges.append((neighbor, second_neighbor, prob))
+
+    # Sorting second step edges and taking the top ones
+    top_second_step_edges.sort(key=lambda x: x[2], reverse=True)
+    top_second_step_edges = top_second_step_edges[:edge_limit]
+
+    return top_first_step_edges, top_second_step_edges
