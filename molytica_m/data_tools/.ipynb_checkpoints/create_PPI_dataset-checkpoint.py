@@ -68,6 +68,16 @@ def get_graph(af_uniprot):
 
     return atom_features, edge_index
 
+def get_graph_raw(af_uniprot):
+    file_name = f"data/af_protein_1_dot_5_angstrom_graphs/{af_uniprot}_graph.h5"
+
+    with h5py.File(file_name, 'r') as h5file:
+        edge_index = h5file['edge_index'][:]
+        edge_attr = h5file['edge_attr'][:]
+        atom_features = h5file['atom_features'][:]
+
+    return atom_features, edge_index
+
 def extract_af_protein_graph(arg_tuple):
     input_folder_path, output_folder_path, af_uniprot_id = arg_tuple
     input_file_name = os.path.join(input_folder_path, f"AF-{af_uniprot_id}-F1-model_v4.pdb.gz")

@@ -1,6 +1,7 @@
 from molytica_m.data_tools import create_PPI_dataset
 from molytica_m.data_tools import alpha_fold_tools
 from tqdm import tqdm
+import numpy as np
 import torch
 import h5py
 import os
@@ -12,6 +13,26 @@ model = torch.load("molytica_m/ml/PPI_S_model.pth", map_location=torch.device(de
 model.eval()
 
 def predict_PPI_value(uniprot_A, uniprot_B):
+    metadata_a = create_PPI_dataset.get_metadata(uniprot_A)
+    metadata_b = create_PPI_dataset.get_metadata(uniprot_B)
+
+    x_a, edge_index_a = create_PPI_dataset.get_graph(uniprot_A)
+    x_b, edge_index_b = create_PPI_dataset.get_graph(uniprot_B)
+
+    output = model(
+        torch.tensor(metadata_a, dtype=torch.float).to(device).unsqueeze(0),
+        torch.tensor(metadata_b, dtype=torch.float).to(device).unsqueeze(0),
+        torch.tensor(x_a, dtype=torch.float).to(device),
+        torch.tensor(edge_index_a, dtype=torch.long).to(device),
+        torch.tensor(x_b, dtype=torch.float).to(device),
+        torch.tensor(edge_index_b, dtype=torch.long).to(device),
+    )
+
+    PPI_value = float(output.to("cpu").detach().numpy()[0][0])
+
+    return PPI_value
+
+def predict_PPI_batch_values(uniprot_A, uniprot_B):
     metadata_a = create_PPI_dataset.get_metadata(uniprot_A)
     metadata_b = create_PPI_dataset.get_metadata(uniprot_B)
 
@@ -86,7 +107,9 @@ def _get_ppi_prob(conn, uniprot_A, uniprot_B):
 def get_ppi_prob(uniprot_A, uniprot_B, db_path='data/ppi_probs.db'):
     with sqlite3.connect(db_path) as conn:
         return _get_ppi_prob(conn, uniprot_A, uniprot_B)
-"""
+
+
+
 if __name__ == "__main__":
     create_database()
     conn = sqlite3.connect('data/ppi_probs.db')
@@ -95,30 +118,43 @@ if __name__ == "__main__":
     total_iterations = len(af_uniprots) * (len(af_uniprots) + 1) / 2
     progress_bar = tqdm(total=total_iterations, desc="Overall progress")
 
+    count = 0
     for i, uniprot_A in enumerate(af_uniprots):
         for uniprot_B in af_uniprots[i:]:
+            count += 1
+            progress_bar.update(1)
+            if count < 73465333:
+                continue
             PPI_prob = predict_PPI_prob_bidirectional(uniprot_A, uniprot_B)
             insert_ppi_prob(conn, uniprot_A, uniprot_B, PPI_prob)
-            progress_bar.update(1)
-
-    progress_bar.close()
-    conn.close()"""
-
-if __name__ == "__main__":
-    create_database()
-    conn = sqlite3.connect('data/ppi_probs.db')
-
-    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
-    total_iterations = len(af_uniprots) * (len(af_uniprots) + 1) / 2
-    progress_bar = tqdm(total=total_iterations, desc="Overall progress")
-
-    for i in range(int(len(af_uniprots)*2/3) - 1, -1, -1):
-        uniprot_A = af_uniprots[i]
-        for j in range(i, -1, -1):
-            uniprot_B = af_uniprots[j]
-            PPI_prob = predict_PPI_prob_bidirectional(uniprot_A, uniprot_B)
-            insert_ppi_prob(conn, uniprot_A, uniprot_B, PPI_prob)
-            progress_bar.update(1)
 
     progress_bar.close()
     conn.close()
+    
+"""
+
+if __name__ == "__main__":
+    create_database()
+    conn = sqlite3.connect('data/ppi_probs.db')
+
+    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+    total_iterations = len(af_uniprots) * (len(af_uniprots) + 1) / 2
+    progress_bar = tqdm(total=total_iterations, desc="Overall progress")
+
+    count = 0
+    for i in range(len(af_uniprots) - 1, -1, -1):
+        uniprot_A = af_uniprots[i]
+        for j in range(i, -1, -1):
+            progress_bar.update(1)
+            count += 1
+            if count < 1774000:
+                continue
+            uniprot_B = af_uniprots[j]
+            PPI_prob = predict_PPI_prob_bidirectional(uniprot_A, uniprot_B)
+            insert_ppi_prob(conn, uniprot_A, uniprot_B, PPI_prob)
+            
+
+    progress_bar.close()
+    conn.close()
+
+"""
