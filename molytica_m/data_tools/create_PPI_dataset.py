@@ -117,7 +117,7 @@ def extract_af_protein_graph(arg_tuple):
         h5file.create_dataset('atom_features', data=features)  # Save atom types as features
     
 
-def create_af_atom_clouds():
+def create_af_atom_graphs():
     input_folder_path = "data/alpha_fold_data/"
     output_folder_path = "data/af_protein_1_dot_5_angstrom_graphs/"
 
@@ -185,4 +185,4 @@ def get_data_loader_and_size():
 
 
 if __name__ == "__main__":
-    create_af_atom_clouds()
+    create_af_atom_graphs()

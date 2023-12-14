@@ -148,3 +148,7 @@ def get_PPI_molecules(DLiP_ids, DLiP_data, af_uniprots):
         PPI_molecules[id_count] = iPPI
         id_count += 2
     return PPI_molecules
+
+def get_full_edge_list():
+    with open("molytica_m/data_tools/filtered_no_reverse_duplicates_huri_and_biogrid_af_uniprot_edges.json", "r") as file:
+        return json.load(file)["filtered_no_reverse_duplicates_huri_and_biogrid_af_uniprot_edges"]
