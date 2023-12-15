@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, global_mean_pool
 
 class ProteinModulationPredictor(nn.Module):
-    def __init__(self, metadata_vector_size=18640, mol_properties_vector_size=24, graph_feature_size=9):
+    def __init__(self, metadata_vector_size=18640, mol_properties_vector_size=21, graph_feature_size=9):
         super(ProteinModulationPredictor, self).__init__()
         
         # Metadata processing layers
@@ -16,10 +16,10 @@ class ProteinModulationPredictor(nn.Module):
 
         # Graph processing layers (using GCN as an example)
         self.gcn_prot_1 = GCNConv(graph_feature_size, 128)
-        self.gcn_prot_1 = GCNConv(128, 128)
+        self.gcn_prot_2 = GCNConv(128, 128)
 
         self.gcn_mol_1 = GCNConv(graph_feature_size, 128)
-        self.gcn_mol_1 = GCNConv(128, 128)
+        self.gcn_mol_2 = GCNConv(128, 128)
 
         # Combining features
         self.fc_combined = nn.Linear(128 * 2 + 128 + 64, 128)  # Assuming combined features are concatenated

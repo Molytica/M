@@ -50,7 +50,7 @@ def csr_graph_from_point_cloud(atom_point_cloud, STANDARD_BOND_LENGTH=1.5):
 def get_atom_type_numeric(atom_type):
     return atom_type_to_float.get(atom_type, 0)
 
-def smiles_to_atom_cloud(smile): 
+def smiles_to_atom_cloud(smile, minimize_energy=True): 
     # Convert the SMILES string to a molecule object
     molecule = Chem.MolFromSmiles(smile)
     if not molecule:
@@ -62,8 +62,9 @@ def smiles_to_atom_cloud(smile):
     # Generate a 3D conformation for the molecule
     AllChem.EmbedMolecule(molecule, AllChem.ETKDG())
     
-    # Minimize the energy of the conformation
-    AllChem.UFFOptimizeMolecule(molecule)
+    if minimize_energy:
+        # Minimize the energy of the conformation
+        AllChem.UFFOptimizeMolecule(molecule)
     
     # Extract the atom types and 3D coordinates of the atoms
     conf = molecule.GetConformer()
@@ -117,7 +118,7 @@ def get_graph_from_smiles_string(smiles_string):
     return Graph(x = features, a=csr_matrix)
 
 def get_raw_graph_from_smiles_string(smiles_string):
-    atom_cloud = smiles_to_atom_cloud(smiles_string)
+    atom_cloud = smiles_to_atom_cloud(smiles_string, minimize_energy=False)
     csr_matrix = csr_graph_from_point_cloud(atom_cloud)
 
     if np.max(atom_cloud[:, 0]) > 9:
