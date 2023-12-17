@@ -24,6 +24,7 @@ class ProteinModulationPredictor(nn.Module):
         # Combining features
         self.fc_combined = nn.Linear(128 * 2 + 128 + 64, 128)  # Assuming combined features are concatenated
 
+        self.exp_fc = nn.Linear(128, 128)
         # Final output layer
         self.output = nn.Linear(128, 2) # Will output IC50 and EC50 value respectively
 
@@ -49,5 +50,6 @@ class ProteinModulationPredictor(nn.Module):
         combined = F.relu(self.fc_combined(combined))
 
         # Output layer
+        combined = F.relu(self.exp_fc(combined))
         out = F.relu(self.output(combined))
         return out

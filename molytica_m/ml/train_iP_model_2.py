@@ -7,6 +7,7 @@ import torch
 import numpy as np
 import torch.nn as nn
 import torch.optim as optim
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -27,7 +28,7 @@ model = ProteinModulationPredictor().to(device)
 loss_function = nn.MSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
-for x in range(0, n_IC50_EC50, batch_size):
+for x in tqdm(range(0, n_IC50_EC50, batch_size), desc="Training"):
     query = "SELECT * FROM bioactivities WHERE activity_unit = 'nM' AND (activity_type = 'IC50' OR activity_type = 'EC50') LIMIT {} OFFSET {};".format(batch_size, x)  # Replace 'your_table_name' with the actual table name
     cursor.execute(query)
 
@@ -47,13 +48,15 @@ for x in range(0, n_IC50_EC50, batch_size):
         uniprot_id = row[1]
         IC50 = 39900.0 #90th percentile value (high = low inhibition potency)
         EC50 = 26302.4 #90th percentile value (high = low effect potency)
-        mol_metadata = np.array([element for element in row[6:] if type(element) != str], dtype=float)
+        mol_metadata = [element for element in row[6:] if type(element) != str][:21]
+        mol_metadata = np.array(mol_metadata, dtype=float)
         np.nan_to_num(mol_metadata, copy=False)
 
-        if row[2] == 'IC50':
-            IC50 = row[4]
-        else:
-            EC50 = row[4]
+        if row[4] is not None:
+            if row[2] == 'IC50':
+                IC50 = row[4]
+            else:
+                EC50 = row[4]
 
         mol_features, mol_csr_matrix = None, None
         try:
@@ -78,22 +81,27 @@ for x in range(0, n_IC50_EC50, batch_size):
     pct_yield = pct_yield / len(rows)
     print(f"Pct yield: {pct_yield}")
 
-    prot_metadatas = np.array(prot_metadatas)
-    mol_metadatas = np.array(mol_metadatas)
-    prot_metadatas = torch.tensor(prot_metadatas, dtype=torch.float).to(device)
-    mol_metadatas = torch.tensor(mol_metadatas, dtype=torch.float).to(device)
+    if len(prot_metadatas) > 0:
+        prot_metadatas = np.array(prot_metadatas)
+        mol_metadatas = np.array(mol_metadatas)
+        prot_metadatas = torch.tensor(prot_metadatas, dtype=torch.float).to(device)
+        mol_metadatas = torch.tensor(mol_metadatas, dtype=torch.float).to(device)
 
-    batch_molss = Batch.from_data_list(mol_Gs).to(device)
-    batch_prots = Batch.from_data_list(prot_Gs).to(device)
+        batch_molss = Batch.from_data_list(mol_Gs).to(device)
+        batch_prots = Batch.from_data_list(prot_Gs).to(device)
 
-    outputs = model(prot_metadatas, mol_metadatas, batch_prots.x, batch_prots.edge_index, batch_prots.batch, batch_molss.x, batch_molss.edge_index, batch_molss.batch)
+        outputs = model(prot_metadatas, mol_metadatas, batch_prots.x, batch_prots.edge_index, batch_prots.batch, batch_molss.x, batch_molss.edge_index, batch_molss.batch)
 
-    labels = torch.tensor(np.array(labels), dtype=torch.float).to(device)
+        labels = np.array(labels, dtype=float)
+        np.nan_to_num(mol_metadata, copy=False)
+        labels = torch.tensor(labels, dtype=torch.float).to(device)
 
-    loss = loss_function(outputs, labels)
-    loss.backward()
-    optimizer.step()
-    print(loss)
+        loss = loss_function(outputs, labels)
+        loss.backward()
+        optimizer.step()
+        print(loss)
 
 # Close the connection
 conn.close()
+
+torch.save(model, "molytca_m/ml/iP_B_model.pth")
