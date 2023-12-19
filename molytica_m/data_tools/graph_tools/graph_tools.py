@@ -118,7 +118,7 @@ def get_graph_from_smiles_string(smiles_string):
     return Graph(x = features, a=csr_matrix)
 
 def get_raw_graph_from_smiles_string(smiles_string):
-    atom_cloud = smiles_to_atom_cloud(smiles_string, minimize_energy=False)
+    atom_cloud = smiles_to_atom_cloud(smiles_string, minimize_energy=True)
     csr_matrix = csr_graph_from_point_cloud(atom_cloud)
 
     if np.max(atom_cloud[:, 0]) > 9:

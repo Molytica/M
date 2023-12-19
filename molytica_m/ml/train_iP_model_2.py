@@ -8,6 +8,10 @@ import numpy as np
 import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
+import torch.nn.functional as F
+import os
+import json
+import random
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -19,15 +23,58 @@ conn = sqlite3.connect(database_path)
 
 # Create a cursor object
 cursor = conn.cursor()
-batch_size = 30
+batch_size = 9
 n_IC50_EC50 = 878560
 n_batches = int(n_IC50_EC50 / batch_size) + 1
 
+batch_split = []
+if not os.path.exists("molytica_m/ml/iP_batches.json"):
+    
+    for x in range(n_batches):
+        if x < n_batches * 0.8:
+            batch_split.append(0)
+        if x < n_batches * 0.9:
+            batch_split.append(1)
+        else:
+            batch_split.append(2)
 
-model = ProteinModulationPredictor().to(device)
-loss_function = nn.MSELoss()
+    random.shuffle(batch_split)
+        
+    
+    with open("molytica_m/ml/iP_batches.json", "w") as file:
+        json_data = {"batch_split": batch_split}
+        json.dump(json_data, file)
+
+else:
+    with open("molytica_m/ml/iP_batches.json", "r") as file:
+        batch_split = json.load(file)["batch_split"]
+
+class CustomMSELoss(nn.Module):
+    def __init__(self):
+        super(CustomMSELoss, self).__init__()
+
+    def forward(self, outputs, labels):
+        # Create a mask for non-NaN values
+        mask = ~torch.isnan(labels)
+
+        # Apply the mask to both outputs and labels
+        masked_outputs = outputs[mask]
+        masked_labels = labels[mask]
+
+        # Compute the MSE loss on the non-masked, relevant data
+        loss = F.mse_loss(masked_outputs, masked_labels, reduction='mean')
+        return loss
+
+if os.path.exists("molytica_m/ml/iP_B_model.pth"):
+    model = torch.load("molytica_m/ml/iP_B_model.pth").to(device)
+else:
+    model = ProteinModulationPredictor().to(device)
+loss_function = CustomMSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
+losses = []
+
+batch_id = 0
 for x in tqdm(range(0, n_IC50_EC50, batch_size), desc="Training"):
     query = "SELECT * FROM bioactivities WHERE activity_unit = 'nM' AND (activity_type = 'IC50' OR activity_type = 'EC50') LIMIT {} OFFSET {};".format(batch_size, x)  # Replace 'your_table_name' with the actual table name
     cursor.execute(query)
@@ -46,8 +93,8 @@ for x in tqdm(range(0, n_IC50_EC50, batch_size), desc="Training"):
     for row in rows:
         smiles = row[0]
         uniprot_id = row[1]
-        IC50 = 39900.0 #90th percentile value (high = low inhibition potency)
-        EC50 = 26302.4 #90th percentile value (high = low effect potency)
+        IC50 = None
+        EC50 = None
         mol_metadata = [element for element in row[6:] if type(element) != str][:21]
         mol_metadata = np.array(mol_metadata, dtype=float)
         np.nan_to_num(mol_metadata, copy=False)
@@ -57,6 +104,8 @@ for x in tqdm(range(0, n_IC50_EC50, batch_size), desc="Training"):
                 IC50 = row[4]
             else:
                 EC50 = row[4]
+        else:
+            continue
 
         mol_features, mol_csr_matrix = None, None
         try:
@@ -81,7 +130,9 @@ for x in tqdm(range(0, n_IC50_EC50, batch_size), desc="Training"):
     pct_yield = pct_yield / len(rows)
     print(f"Pct yield: {pct_yield}")
 
-    if len(prot_metadatas) > 0:
+    if len(prot_metadatas) > 0 and batch_split[batch_id] == 0:
+        optimizer.zero_grad()  # Reset gradients before forward pass
+
         prot_metadatas = np.array(prot_metadatas)
         mol_metadatas = np.array(mol_metadatas)
         prot_metadatas = torch.tensor(prot_metadatas, dtype=torch.float).to(device)
@@ -99,9 +150,17 @@ for x in tqdm(range(0, n_IC50_EC50, batch_size), desc="Training"):
         loss = loss_function(outputs, labels)
         loss.backward()
         optimizer.step()
+
+        losses.append(loss)
+        if len(losses) > 2:
+            losses = losses[-2:]
         print(loss)
+        print(torch.tensor(losses, dtype=torch.float).mean())
+        torch.save(model, "molytica_m/ml/iP_B_model.pth")
+
+    batch_id += 1
 
 # Close the connection
 conn.close()
 
-torch.save(model, "molytca_m/ml/iP_B_model.pth")
+torch.save(model, "molytica_m/ml/iP_B_model.pth")
