@@ -2,7 +2,6 @@ import torch
 from torch_geometric.nn import GATConv
 from transformers import BertModel, AutoConfig, AutoModel
 from torch import nn
-from torchsummary import summary
 
 class GATLayer(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -64,6 +63,7 @@ class Arch2Model(nn.Module):
         combined = torch.cat((gnn_out1, gnn_out2, bert_out1, bert_out2, dense_out1, dense_out2), dim=1)
         return self.regression_head(combined)
     
+
 def main():
     # Define channels/features for each layer
     gat_in_channels = 64
@@ -80,6 +80,30 @@ def main():
     model = Arch2Model(gat_in_channels, gat_out_channels, chembert_model_name, protbert_model_name, dense_in_features, dense_out_features, regression_out_features)
 
     print(model)
+
+
+
+gat_in_channels = 64
+gat_out_channels = 32
+dense_in_features = 768  # Size of the BERT layer output
+dense_out_features = 50  # Arbitrary number for intermediate dense layer
+regression_out_features = 2  # Replace with the actual number of regression targets
+
+# Define model names for the specific BERT models
+chembert_model_name = "DeepChem/ChemBERTa-77M-MLM"
+protbert_model_name = "Rostlab/prot_bert"
+
+def main():
+    # Define channels/features for each layer
+    
+    # Initialize the model with names for both BERT models
+    model = Arch2Model(gat_in_channels, gat_out_channels, chembert_model_name, protbert_model_name, dense_in_features, dense_out_features, regression_out_features)
+
+    print(model)
+
+
+def get_model():
+    return Arch2Model(gat_in_channels, gat_out_channels, chembert_model_name, protbert_model_name, dense_in_features, dense_out_features, regression_out_features)
 
 if __name__ == "__main__":
     main()
