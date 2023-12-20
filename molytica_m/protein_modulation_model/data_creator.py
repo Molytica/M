@@ -56,6 +56,19 @@ def create_SMILES_metadata(chembl_db_path, target_output_path):
     pass
 
 
+def create_PROTEIN_sequences(alphafold_folder_path, target_output_path): # Update this to make it work
+    # Get list of Uniprot IDs
+    uniprot_ids = os.listdir(alphafold_folder_path)
+
+    # For each Uniprot ID, read the sequence.fasta file and write to a new file in the target_output_path
+    for uniprot_id in uniprot_ids:
+        sequence_file_path = os.path.join(alphafold_folder_path, uniprot_id, 'sequence.fasta')
+        if os.path.exists(sequence_file_path):
+            with open(sequence_file_path, 'r') as f_in:
+                sequence = f_in.read()
+            with open(os.path.join(target_output_path, f'{uniprot_id}_sequence.fasta'), 'w') as f_out:
+                f_out.write(sequence)
+
 
 def main():
     alphafold_folder_path = "/path/to/alphafold/folder"
@@ -68,6 +81,10 @@ def main():
     create_SMILES_graphs_and_id_mappings(chembl_db_path, target_output_path)
     create_PROTEIN_metadata(alphafold_folder_path, protein_metadata_tsv_path, target_output_path)
     create_SMILES_metadata(chembl_db_path, target_output_path)
+    create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
+
+    # Molecule sequences are represented as smile strings
+
 
 if __name__ == "__main__":
     main()
