@@ -64,11 +64,13 @@ class CustomMSELoss(nn.Module):
         # Compute the MSE loss on the non-masked, relevant data
         loss = F.mse_loss(masked_outputs, masked_labels, reduction='mean')
         return loss
-
+"""
 if os.path.exists("molytica_m/ml/iP_B_model.pth"):
     model = torch.load("molytica_m/ml/iP_B_model.pth").to(device)
 else:
     model = ProteinModulationPredictor().to(device)
+"""
+model = ProteinModulationPredictor().to(device)
 loss_function = CustomMSELoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
