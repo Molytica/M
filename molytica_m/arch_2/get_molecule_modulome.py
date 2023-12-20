@@ -1,7 +1,7 @@
 from concurrent.futures import ProcessPoolExecutor
-from molytica_m.arch_2 import model
+from molytica_m.arch_2 import modulation_model
 
-model = model.get_model()
+modulation_model = modulation_model.get_trained_model()
 
 def get_data(SMILES, uniprot_id):
     data = ("", [], 0)
@@ -30,7 +30,7 @@ def get_modulome(SMILES):
         data_input_tuples = executor.map(expand_id_pair_to_data, id_input_tuples)
 
 
-    modulome = model.predict(data_input_tuples)
+    modulome = modulation_model.predict(data_input_tuples)
     
     return modulome
 

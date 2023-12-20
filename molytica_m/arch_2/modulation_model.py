@@ -105,5 +105,9 @@ def main():
 def get_model():
     return Arch2Model(gat_in_channels, gat_out_channels, chembert_model_name, protbert_model_name, dense_in_features, dense_out_features, regression_out_features)
 
+def get_trained_model():
+    model = torch.load("model.pt")
+    return model
+
 if __name__ == "__main__":
     main()
