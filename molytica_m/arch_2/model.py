@@ -2,6 +2,7 @@ import torch
 from torch_geometric.nn import GATConv
 from transformers import BertModel, AutoConfig, AutoModel
 from torch import nn
+from torchsummary import summary
 
 class GATLayer(nn.Module):
     def __init__(self, in_channels, out_channels):
@@ -33,18 +34,21 @@ class RegressionHead(nn.Module):
     def __init__(self, in_features, out_features):
         super(RegressionHead, self).__init__()
         self.regression = nn.Linear(in_features, out_features)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
+        x = self.dropout(x)
         return self.regression(x)
 
 
 class Arch2Model(nn.Module):
-    def __init__(self, gat_in_channels, gat_out_channels, bert_model_name, dense_in_features, dense_out_features, regression_out_features):
+    def __init__(self, gat_in_channels, gat_out_channels, chembert_model_name, protbert_model_name, dense_in_features, dense_out_features, regression_out_features):
         super(Arch2Model, self).__init__()
         self.gnn1 = GATLayer(gat_in_channels, gat_out_channels)
         self.gnn2 = GATLayer(gat_in_channels, gat_out_channels)
-        self.bert1 = BERTLayer(bert_model_name)
-        self.bert2 = BERTLayer(bert_model_name)
+        # Initialize BERT layers with their specific pre-trained models
+        self.chembert = BERTLayer(chembert_model_name)
+        self.protbert = BERTLayer(protbert_model_name)
         self.dense1 = DenseLayer(dense_in_features, dense_out_features)
         self.dense2 = DenseLayer(dense_in_features, dense_out_features)
         # Replace the final dense layer with a regression head
@@ -61,21 +65,21 @@ class Arch2Model(nn.Module):
         return self.regression_head(combined)
     
 def main():
-    # Usage example
+    # Define channels/features for each layer
     gat_in_channels = 64
     gat_out_channels = 32
-    bert_model_name = "DeepChem/ChemBERTa-77M-MLM"
     dense_in_features = 768  # Size of the BERT layer output
     dense_out_features = 50  # Arbitrary number for intermediate dense layer
+    regression_out_features = 2  # Replace with the actual number of regression targets
 
-    # Initialize model
-    model = Arch2Model(gat_in_channels, gat_out_channels, bert_model_name, dense_in_features, dense_out_features)
+    # Define model names for the specific BERT models
+    chembert_model_name = "DeepChem/ChemBERTa-77M-MLM"
+    protbert_model_name = "Rostlab/prot_bert"
 
-    # Define your loss function and optimizer
-    loss_fn = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
+    # Initialize the model with names for both BERT models
+    model = Arch2Model(gat_in_channels, gat_out_channels, chembert_model_name, protbert_model_name, dense_in_features, dense_out_features, regression_out_features)
 
-    # Your training loop will go here
+    print(model)
 
 if __name__ == "__main__":
     main()
