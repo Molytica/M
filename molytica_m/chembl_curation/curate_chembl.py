@@ -11,6 +11,15 @@ from tqdm import tqdm
 import requests
 import tarfile
 import h5py
+from molytica_m.data_tools import alpha_fold_tools
+from tqdm import tqdm
+import pandas as pd
+import numpy as np
+import time
+import json
+import h5py
+import sys
+import os
 
 # Curate chembl data for all species and store in a folder system
 
@@ -70,7 +79,7 @@ def create_PROTEIN_graphs(input_folder_path="data/curated_chembl/alpha_fold_data
         _results = list(tqdm(executor.map(extract_af_protein_graph, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
 
 
-def create_SMILES_id_mappings(chembl_db_path, target_output_path):
+def create_SMILES_id_mappings(chembl_db_path, target_output_path="data/curated_chembl/"):
     conn = sqlite3.connect(chembl_db_path)
     cursor = conn.cursor()
 
@@ -80,22 +89,39 @@ def create_SMILES_id_mappings(chembl_db_path, target_output_path):
 
     # Fetch and print the results
     rows = cursor.fetchall()
+    idx=0
+    id_to_smiles = {}
+    smiles_to_id = {}
+
+    if not os.path.exists(os.path.join(target_output_path, "molecule_id_mappings")):
+        os.makedirs(os.path.join(target_output_path, "molecule_id_mappings"))
+
+    print("Creating id mappings...")
     for row in rows:
         smiles = row[0]
-        print(smiles)
+        id_to_smiles[idx] = smiles
+        smiles_to_id[smiles] = idx
+        idx += 1
 
     conn.close()
+
+    print("Saving id mappings...")
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json"), 'w') as f:
+        json.dump(id_to_smiles, f)
+
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "smiles_to_id.json"), 'w') as f:
+        json.dump(smiles_to_id, f)
 
 def create_SMILES_graphs(chembl_db_path, target_output_path):
     # Perform data creation into the target_output folder
     # Add your code here
 
     # Create a folder called molecule_graphs inside the target_output folder if not exists
-    if os.path.exists(os.path.join(target_output_path, "molecule_graphs")):
+    if not os.path.exists(os.path.join(target_output_path, "molecule_graphs")):
         os.makedirs(os.path.join(target_output_path, "molecule_graphs"))
 
     # Create a folder called id_mappings inside the target_output folder if not exists
-    if os.path.exists(os.path.join(target_output_path, "molecule_id_mappings")):
+    if not os.path.exists(os.path.join(target_output_path, "molecule_id_mappings")):
         os.makedirs(os.path.join(target_output_path, "molecule_id_mappings"))
 
     # Create id mapping file
@@ -103,17 +129,6 @@ def create_SMILES_graphs(chembl_db_path, target_output_path):
     # Create graph hdf5 files where the file name is the smiles id followed by .h5
 
     pass
-
-
-def create_PROTEIN_metadata(alphafold_folder_path, protein_metadata_tsv_path, target_output_path):
-    # Perform data creation into the target_output folder
-    # Add your code here
-
-    # Use alphafold folder and protein_metadata_tsv_path to create protein metadata for each uniprot id
-
-
-    pass
-
 
 
 def create_SMILES_metadata(chembl_db_path, target_output_path):
@@ -250,7 +265,73 @@ def download_and_extract(url, target_dir):
 def download_alphafold_data(target_output_path="data/alpha_fold_data"):
     url = "https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000005640_9606_HUMAN_v4.tar"
     download_and_extract(url, target_output_path)
+
+
+def get_ordered_unique_col_values(columns, af_uniprots=alpha_fold_tools.get_alphafold_uniprot_ids(), id_mappings=pd.read_table("molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv")):
+    values = values = [set() for _ in range(len(columns))]
+    print(values)
+
+    for uniprot in tqdm(af_uniprots, desc="Getting unique values"):
+        row = id_mappings[id_mappings['From'] == str(uniprot)].iloc[0]
+
+        for col in columns:
+            col_id = list(columns).index(col)
+            vals = str(row[col]).split("; ")
+            for val in vals:
+                values[col_id].add(val)
     
+    unique_value_lists_dict = {}
+    for idx, value in enumerate(values):
+        unique_value_lists_dict[list(columns)[idx]] = sorted(list(value))
+    return unique_value_lists_dict
+
+
+def binary_encode(full_values_list, values):
+    value_to_index = {v: i for i, v in enumerate(full_values_list)}
+    binary_encoded = [0] * len(full_values_list)
+    for value in values:
+        if value in value_to_index:
+            binary_encoded[value_to_index[value]] = 1
+    return binary_encoded
+
+def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/"): # AF-UNIPROT-HOMO-SAPEINS protein metadata as binary vectors
+    print("Creating protein")
+    id_mappings = pd.read_table("molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv")
+    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+
+    if len(save_path) > 0:
+        print("Protein Metadata already created. Skipping.")
+        return
+
+    columns = id_mappings.columns
+
+    unique_value_lists = get_ordered_unique_col_values(columns)
+
+    interesting_columns = ["Gene Ontology (GO)"]
+    uniprot_metadata = {}
+
+    for uniprot in tqdm(af_uniprots, desc="Generating Metadata files"):
+        uniprot_data = []
+        row = id_mappings[id_mappings['From'] == str(uniprot)].iloc[0]
+
+        for col in interesting_columns:
+            vals = list(set(str(row[col]).split("; ")))
+            uniprot_data += binary_encode(unique_value_lists[col], vals)
+
+        uniprot_metadata[uniprot] = uniprot_data
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
+
+
+    for uniprot in tqdm(list(uniprot_metadata.keys()), desc="Saving to hdf5"):
+        metadata = uniprot_metadata[uniprot]
+
+        file_name = os.path.join(save_path, f"{uniprot}_metadata.h5")
+
+        # Saving metadata to HDF5 file
+        with h5py.File(file_name, 'w') as h5file:
+            h5file.create_dataset('metadata', data=np.array(metadata, dtype=float))
 
 def main():
     alphafold_folder_path = "data/curated_chembl/alpha_fold_data"
@@ -260,6 +341,7 @@ def main():
     protein_graph_output_path = "data/curated_chembl/af_protein_1_dot_5_angstrom_graphs"
     protein_metadata_tsv_path = "/path/to/protein/metadata/tsv" # Curated metadata created by pasting all the uniprot ids into uniprot website id mapping tool
     target_output_path = "data/curated_chembl"
+    target_protein_metadata_output_path = "data/curated_chembl/af_metadata"
     curated_chembl_db_path = os.path.join(curated_chembl_db_folder_path, new_db_name)
 
     id_mapping_tools.generate_index_dictionaries(raw_chembl_db_path)
@@ -267,11 +349,11 @@ def main():
     download_alphafold_data(alphafold_folder_path)
     curate_raw_chembl(raw_chembl_db_path, curated_chembl_db_folder_path, new_db_name)
     create_PROTEIN_graphs(alphafold_folder_path, protein_graph_output_path)
+    create_PROTEIN_metadata(target_protein_metadata_output_path)
 
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
     create_SMILES_graphs(curated_chembl_db_path, target_output_path)
-
-    create_PROTEIN_metadata(alphafold_folder_path, protein_metadata_tsv_path, target_output_path)
+    
     create_SMILES_metadata(raw_chembl_db_path, target_output_path)
     create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
 

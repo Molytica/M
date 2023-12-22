@@ -8,13 +8,7 @@ import h5py
 import sys
 import os
 
-id_mappings = pd.read_table("molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv")
-af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
-
-columns = id_mappings.columns
-print(columns)
-
-def get_ordered_unique_col_values(columns):
+def get_ordered_unique_col_values(columns, af_uniprots=alpha_fold_tools.get_alphafold_uniprot_ids(), id_mappings=pd.read_table("molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv")):
     values = values = [set() for _ in range(len(columns))]
     print(values)
 
@@ -32,7 +26,6 @@ def get_ordered_unique_col_values(columns):
         unique_value_lists_dict[list(columns)[idx]] = sorted(list(value))
     return unique_value_lists_dict
 
-unique_value_lists = get_ordered_unique_col_values(columns)
 
 def binary_encode(full_values_list, values):
     value_to_index = {v: i for i, v in enumerate(full_values_list)}
@@ -42,31 +35,39 @@ def binary_encode(full_values_list, values):
             binary_encoded[value_to_index[value]] = 1
     return binary_encoded
 
+def curate_af_human_uniprot_metadata(save_path="data/af_metadata/"):
+    id_mappings = pd.read_table("molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv")
+    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
 
-interesting_columns = ["Gene Ontology (GO)"]
-uniprot_metadata = {}
+    columns = id_mappings.columns
 
-for uniprot in tqdm(af_uniprots, desc="Generating Metadata files"):
-    uniprot_data = []
-    row = id_mappings[id_mappings['From'] == str(uniprot)].iloc[0]
+    unique_value_lists = get_ordered_unique_col_values(columns)
 
-    for col in interesting_columns:
-        vals = list(set(str(row[col]).split("; ")))
-        uniprot_data += binary_encode(unique_value_lists[col], vals)
+    interesting_columns = ["Gene Ontology (GO)"]
+    uniprot_metadata = {}
 
-    uniprot_metadata[uniprot] = uniprot_data
+    for uniprot in tqdm(af_uniprots, desc="Generating Metadata files"):
+        uniprot_data = []
+        row = id_mappings[id_mappings['From'] == str(uniprot)].iloc[0]
+
+        for col in interesting_columns:
+            vals = list(set(str(row[col]).split("; ")))
+            uniprot_data += binary_encode(unique_value_lists[col], vals)
+
+        uniprot_metadata[uniprot] = uniprot_data
+
+    if not os.path.exists(save_path):
+        os.makedirs(save_path)
 
 
-save_path = f"data/af_metadata/"
+    for uniprot in tqdm(list(uniprot_metadata.keys()), desc="Saving to hdf5"):
+        metadata = uniprot_metadata[uniprot]
 
-if not os.path.exists(save_path):
-    os.makedirs(save_path)
+        file_name = os.path.join(save_path, f"{uniprot}_metadata.h5")
 
-for uniprot in tqdm(list(uniprot_metadata.keys()), desc="Saving to hdf5"):
-    metadata = uniprot_metadata[uniprot]
+        # Saving metadata to HDF5 file
+        with h5py.File(file_name, 'w') as h5file:
+            h5file.create_dataset('metadata', data=np.array(metadata, dtype=float))
 
-    file_name = os.path.join(save_path, f"{uniprot}_metadata.h5")
-
-    # Saving metadata to HDF5 file
-    with h5py.File(file_name, 'w') as h5file:
-        h5file.create_dataset('metadata', data=np.array(metadata, dtype=float))
+if __name__ == "__main__":
+    curate_af_human_uniprot_metadata()
