@@ -79,6 +79,39 @@ def smiles_to_atom_cloud(smile, minimize_energy=True):
     atom_cloud_array = np.array(atom_cloud_data, dtype=float)
     return atom_cloud_array
 
+def smiles_to_atom_multiple_clouds(smile, num_conformations=5, minimize_energy=True):
+    # Convert the SMILES string to a molecule object
+    molecule = Chem.MolFromSmiles(smile)
+    if not molecule:
+        raise ValueError("Invalid SMILES string")
+    
+    # Add hydrogens to the molecule
+    molecule = Chem.AddHs(molecule)
+    
+    # Generate multiple 3D conformations for the molecule
+    ids = AllChem.EmbedMultipleConfs(molecule, numConfs=num_conformations, params=AllChem.ETKDG())
+
+    atom_clouds = []
+    for conf_id in ids:
+        if minimize_energy:
+            # Minimize the energy of the conformation
+            AllChem.UFFOptimizeMolecule(molecule, confId=conf_id)
+
+        # Extract the atom types and 3D coordinates of the atoms
+        conf = molecule.GetConformer(conf_id)
+        atom_cloud_data = []
+        for idx, atom in enumerate(molecule.GetAtoms()):
+            if atom.GetSymbol() != 'H':
+                atom_type = atom_type_to_float(atom.GetSymbol())
+                position = conf.GetAtomPosition(idx)
+                atom_cloud_data.append((atom_type, position.x, position.y, position.z))
+
+        # Convert the atom cloud data to a NumPy array and add to list
+        atom_cloud_array = np.array(atom_cloud_data, dtype=float)
+        atom_clouds.append(atom_cloud_array)
+
+    return atom_clouds
+
 def combine_graphs(graphs):
     # Check if the graphs list is empty
     if not graphs:
@@ -129,6 +162,38 @@ def get_raw_graph_from_smiles_string(smiles_string):
     features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int) - 1] 
 
     return features, csr_matrix
+
+def get_raw_graphs_from_smiles_string(smiles_string):
+    atom_clouds = smiles_to_atom_multiple_clouds(smiles_string, minimize_energy=True)
+
+    feature_list = []
+    csr_matrix_list = []
+
+    for atom_cloud in atom_clouds:
+        if np.max(atom_cloud[:, 0]) > 9:
+            print(f"UNKNOWN ATOM TYPE ============================================================={np.max(atom_cloud[:, 0])}")
+        
+        atom_point_cloud_atom_types = atom_cloud[:, 0]  # Get the atom types
+        n_atom_types = 9
+
+        features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int) - 1]
+        csr_matrix = csr_graph_from_point_cloud(atom_cloud)
+
+        feature_list.append(features)
+        csr_matrix_list.append(csr_matrix)
+
+    return feature_list, csr_matrix_list
+
+def save_features_csr_matrix_to_hdf5(features, csr_matrix, file_path):
+    with h5py.File(file_path, 'w') as f:
+        # Save features
+        f.create_dataset('features', data=features)
+
+        # Save CSR matrix components
+        f.create_dataset('data', data=csr_matrix.data)
+        f.create_dataset('indices', data=csr_matrix.indices)
+        f.create_dataset('indptr', data=csr_matrix.indptr)
+        f.create_dataset('shape', data=csr_matrix.shape)
 
 def get_graph_from_uniprot_id(uniprot_id):
     folder_path = "data/alpha_fold_data/"

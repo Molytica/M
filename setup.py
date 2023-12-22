@@ -1,5 +1,8 @@
 from setuptools import setup, find_packages
 
+
+# Also install sudo apt-get install openbabel
+
 setup(
     name='molytica_m',
     version='0.1',
@@ -17,6 +20,7 @@ setup(
         'torch',
         'torch_geometric',
         'openai',
-        'scanpy'
+        'scanpy',
+        'openbabel',
     ],
 )

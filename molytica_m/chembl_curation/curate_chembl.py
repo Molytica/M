@@ -80,6 +80,10 @@ def create_PROTEIN_graphs(input_folder_path="data/curated_chembl/alpha_fold_data
 
 
 def create_SMILES_id_mappings(chembl_db_path, target_output_path="data/curated_chembl/"):
+    if os.path.exists(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json")):
+        print("SMILES id mappings already created. Skipping...")
+        return
+
     conn = sqlite3.connect(chembl_db_path)
     cursor = conn.cursor()
 
@@ -112,23 +116,89 @@ def create_SMILES_id_mappings(chembl_db_path, target_output_path="data/curated_c
     with open(os.path.join(target_output_path, "molecule_id_mappings", "smiles_to_id.json"), 'w') as f:
         json.dump(smiles_to_id, f)
 
-def create_SMILES_graphs(chembl_db_path, target_output_path):
-    # Perform data creation into the target_output folder
-    # Add your code here
 
-    # Create a folder called molecule_graphs inside the target_output folder if not exists
-    if not os.path.exists(os.path.join(target_output_path, "molecule_graphs")):
-        os.makedirs(os.path.join(target_output_path, "molecule_graphs"))
 
-    # Create a folder called id_mappings inside the target_output folder if not exists
-    if not os.path.exists(os.path.join(target_output_path, "molecule_id_mappings")):
-        os.makedirs(os.path.join(target_output_path, "molecule_id_mappings"))
 
-    # Create id mapping file
+"""feature_list, csr_matrix_list = graph_tools.get_raw_graphs_from_smiles_string(smiles, num_conformations=5)
 
-    # Create graph hdf5 files where the file name is the smiles id followed by .h5
+        for i, (features, csr_matrix) in enumerate(zip(feature_list, csr_matrix_list)):
+            save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{smiles_strings_in_current_folder}_{i}.h5')
+            if not os.path.exists(os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}')):
+                os.makedirs(os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}'))
 
-    pass
+            # Save each graph in h5 file format
+            graph_tools.save_features_csr_matrix_to_hdf5(features, csr_matrix, save_path)
+
+            # Create id mappings for each graph
+            id_to_path[f"{smiles_to_id[smiles]}_{i}"] = save_path
+            smiles_to_path[f"{smiles}_{i}"] = save_path"""
+
+
+
+def generate_and_save_graphs(args):
+    smiles, target_output_path, id_to_paths, smiles_to_paths, smiles_to_id, folder_idx = args
+    feature_list, csr_matrix_list = graph_tools.get_raw_graphs_from_smiles_string(smiles, num_conformations=5)
+
+    mol_id = smiles_to_id[smiles]
+
+    save_paths = []
+
+    for i, (features, csr_matrix) in enumerate(zip(feature_list, csr_matrix_list)):
+        save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{mol_id}_{i}.h5')
+        if not os.path.exists(os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}')):
+            os.makedirs(os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}'))
+
+        # Save each graph in h5 file format
+        graph_tools.save_features_csr_matrix_to_hdf5(features, csr_matrix, save_path)
+
+        save_paths.append(save_path)
+
+    # Create id mappings for each graph
+    id_to_paths[mol_id] = save_paths
+    smiles_to_paths[smiles] = save_paths
+
+
+def create_SMILES_graphs(target_output_path):
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json"), 'r') as f:
+        id_to_smiles = json.load(f)
+
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "smiles_to_id.json"), 'r') as f:
+        smiles_to_id = json.load(f)
+
+    id_to_paths = {}
+    smiles_to_paths = {}
+
+    folder_idx = 0
+    batch_size = 100
+    batches_per_folder = 100
+    batches_in_current_folder = 0
+    smiles_batch = []
+    for smiles in tqdm(id_to_smiles.values(), desc="Creating SMILES graphs"):
+        smiles_batch.append(smiles)        
+
+        if len(smiles_batch)  > batch_size:
+
+            ## Process batch
+
+            # Generate path indexes
+            with ProcessPoolExecutor() as executor:
+                
+                args = [(smiles, target_output_path, id_to_paths, smiles_to_paths, smiles_to_id, folder_idx) for smiles in smiles_batch]
+                results = list(tqdm(executor.map(generate_and_save_graphs, args), desc="Generating graphs", total=len(smiles_batch)))
+            
+            # Housekeeping
+            batches_in_current_folder += 1
+            smiles_batch = []
+
+        if batches_in_current_folder > batches_per_folder:
+            folder_idx += 1
+            batches_in_current_folder = 0
+
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_path.json"), 'w') as f:
+        json.dump(id_to_paths, f)
+    
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "smiles_to_path.json"), 'w') as f:
+        json.dump(smiles_to_paths, f)
 
 
 def create_SMILES_metadata(chembl_db_path, target_output_path):
@@ -352,8 +422,9 @@ def main():
     create_PROTEIN_metadata(target_protein_metadata_output_path)
 
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
-    create_SMILES_graphs(curated_chembl_db_path, target_output_path)
+    create_SMILES_graphs(target_output_path)
     
+    create_SMILES_metadata(raw_chembl_db_path, target_output_path)
     create_SMILES_metadata(raw_chembl_db_path, target_output_path)
     create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
 
