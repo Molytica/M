@@ -17,15 +17,20 @@ import gzip
 import os
 
 atom_type_to_float = {
-    'C': 1.0,  # Carbon
-    'N': 2.0,  # Nitrogen
-    'O': 3.0,  # Oxygen
-    'S': 4.0,  # Sulfur
-    'P': 5.0,  # Phosphorus
-    'F': 6.0,  # Fluorine
-    'Cl': 7.0, # Chlorine
-    'Br': 8.0, # Bromine
-    'I': 9.0,  # Iodine
+    'C': 0.0,  # Carbon
+    'N': 1.0,  # Nitrogen
+    'O': 2.0,  # Oxygen
+    'S': 3.0,  # Sulfur
+    'P': 4.0,  # Phosphorus
+    'F': 5.0,  # Fluorine
+    'Cl': 6.0, # Chlorine
+    'Br': 7.0, # Bromine
+    'I': 8.0,  # Iodine
+    'Na': 9.0, # Sodium
+    'K': 10.0, # Potassium
+    'B': 11.0, # Boron
+    'Si': 12.0,# Silicon
+    'Se': 13.0,# Selenium
 }
 
 def csr_graph_from_point_cloud(atom_point_cloud, STANDARD_BOND_LENGTH=1.5):
@@ -102,7 +107,7 @@ def smiles_to_atom_multiple_clouds(smile, num_conformations=5, minimize_energy=T
         atom_cloud_data = []
         for idx, atom in enumerate(molecule.GetAtoms()):
             if atom.GetSymbol() != 'H':
-                atom_type = atom_type_to_float(atom.GetSymbol())
+                atom_type = atom_type_to_float[atom.GetSymbol()]
                 position = conf.GetAtomPosition(idx)
                 atom_cloud_data.append((atom_type, position.x, position.y, position.z))
 
@@ -163,20 +168,17 @@ def get_raw_graph_from_smiles_string(smiles_string):
 
     return features, csr_matrix
 
-def get_raw_graphs_from_smiles_string(smiles_string):
-    atom_clouds = smiles_to_atom_multiple_clouds(smiles_string, minimize_energy=True)
+def get_raw_graphs_from_smiles_string(smiles_string, num_conformations=5, minimize_energy=True):
+    atom_clouds = smiles_to_atom_multiple_clouds(smiles_string, num_conformations=num_conformations, minimize_energy=minimize_energy)
 
     feature_list = []
     csr_matrix_list = []
 
     for atom_cloud in atom_clouds:
-        if np.max(atom_cloud[:, 0]) > 9:
-            print(f"UNKNOWN ATOM TYPE ============================================================={np.max(atom_cloud[:, 0])}")
-        
         atom_point_cloud_atom_types = atom_cloud[:, 0]  # Get the atom types
-        n_atom_types = 9
+        n_atom_types = len(atom_type_to_float.keys())
 
-        features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int) - 1]
+        features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int)]
         csr_matrix = csr_graph_from_point_cloud(atom_cloud)
 
         feature_list.append(features)

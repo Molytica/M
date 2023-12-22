@@ -45,10 +45,10 @@ def extract_af_protein_graph(arg_tuple):
     
     protein_atom_cloud_array = np.array(protein_atom_cloud_array)
     atom_point_cloud_atom_types = protein_atom_cloud_array[:, 0]  # Changed from :1 to 0 for correct indexing
-    n_atom_types = 9
+    n_atom_types = len(graph_tools.atom_type_to_float.values())
 
     # One-hot encode the atom types
-    features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int) - 1]
+    features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int)]
 
     # Create the graph
     graph = graph_tools.csr_graph_from_point_cloud(protein_atom_cloud_array[:, 1:], STANDARD_BOND_LENGTH=1.5)
@@ -117,46 +117,37 @@ def create_SMILES_id_mappings(chembl_db_path, target_output_path="data/curated_c
         json.dump(smiles_to_id, f)
 
 
+def generate_and_save_graphs(args, retry=True):
+    save_paths = []
 
-
-"""feature_list, csr_matrix_list = graph_tools.get_raw_graphs_from_smiles_string(smiles, num_conformations=5)
+    try:
+        smiles, mol_id, target_output_path, id_to_paths, smiles_to_paths, folder_idx = args
+        generic_save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{mol_id}_{0}.h5')
+        if os.path.exists(generic_save_path):
+            return
+        
+        feature_list, csr_matrix_list = graph_tools.get_raw_graphs_from_smiles_string(smiles, num_conformations=5)
 
         for i, (features, csr_matrix) in enumerate(zip(feature_list, csr_matrix_list)):
-            save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{smiles_strings_in_current_folder}_{i}.h5')
+            save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{mol_id}_{i}.h5')
             if not os.path.exists(os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}')):
                 os.makedirs(os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}'))
 
             # Save each graph in h5 file format
             graph_tools.save_features_csr_matrix_to_hdf5(features, csr_matrix, save_path)
 
-            # Create id mappings for each graph
-            id_to_path[f"{smiles_to_id[smiles]}_{i}"] = save_path
-            smiles_to_path[f"{smiles}_{i}"] = save_path"""
+            save_paths.append(save_path)
 
-
-
-def generate_and_save_graphs(args):
-    smiles, target_output_path, id_to_paths, smiles_to_paths, smiles_to_id, folder_idx = args
-    feature_list, csr_matrix_list = graph_tools.get_raw_graphs_from_smiles_string(smiles, num_conformations=5)
-
-    mol_id = smiles_to_id[smiles]
-
-    save_paths = []
-
-    for i, (features, csr_matrix) in enumerate(zip(feature_list, csr_matrix_list)):
-        save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{mol_id}_{i}.h5')
-        if not os.path.exists(os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}')):
-            os.makedirs(os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}'))
-
-        # Save each graph in h5 file format
-        graph_tools.save_features_csr_matrix_to_hdf5(features, csr_matrix, save_path)
-
-        save_paths.append(save_path)
-
-    # Create id mappings for each graph
-    id_to_paths[mol_id] = save_paths
-    smiles_to_paths[smiles] = save_paths
-
+        # Create id mappings for each graph
+        id_to_paths[mol_id] = save_paths
+        smiles_to_paths[smiles] = save_paths
+    except Exception as e:
+        print(f"Error occurred while generating graphs: {e}")
+        for save_path in save_paths:
+            os.remove(save_path)
+        if retry:
+            print("Retrying...")
+            generate_and_save_graphs(args, retry=False)
 
 def create_SMILES_graphs(target_output_path):
     with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json"), 'r') as f:
@@ -169,12 +160,16 @@ def create_SMILES_graphs(target_output_path):
     smiles_to_paths = {}
 
     folder_idx = 0
-    batch_size = 100
-    batches_per_folder = 100
+    batch_size = 100000
+    batches_per_folder = int(1000 / batch_size)
     batches_in_current_folder = 0
     smiles_batch = []
+    mol_id = 0
+    batch_mol_ids = []
     for smiles in tqdm(id_to_smiles.values(), desc="Creating SMILES graphs"):
         smiles_batch.append(smiles)        
+        batch_mol_ids.append(mol_id)
+        mol_id += 1
 
         if len(smiles_batch)  > batch_size:
 
@@ -183,12 +178,13 @@ def create_SMILES_graphs(target_output_path):
             # Generate path indexes
             with ProcessPoolExecutor() as executor:
                 
-                args = [(smiles, target_output_path, id_to_paths, smiles_to_paths, smiles_to_id, folder_idx) for smiles in smiles_batch]
+                args = [(smiles, mol_id, target_output_path, id_to_paths, smiles_to_paths, folder_idx) for (smiles, mol_id) in zip(smiles_batch, batch_mol_ids)]
                 results = list(tqdm(executor.map(generate_and_save_graphs, args), desc="Generating graphs", total=len(smiles_batch)))
             
             # Housekeeping
             batches_in_current_folder += 1
             smiles_batch = []
+            batch_mol_ids = []
 
         if batches_in_current_folder > batches_per_folder:
             folder_idx += 1
