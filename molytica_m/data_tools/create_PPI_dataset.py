@@ -117,10 +117,7 @@ def extract_af_protein_graph(arg_tuple):
         h5file.create_dataset('atom_features', data=features)  # Save atom types as features
     
 
-def create_af_atom_graphs():
-    input_folder_path = "data/alpha_fold_data/"
-    output_folder_path = "data/af_protein_1_dot_5_angstrom_graphs/"
-
+def create_af_atom_graphs(input_folder_path="data/alpha_fold_data/", output_folder_path="data/af_protein_1_dot_5_angstrom_graphs/"):
     if not os.path.exists(output_folder_path):
         os.makedirs(output_folder_path)
 
