@@ -225,9 +225,13 @@ def create_SMILES_graphs(target_output_path):
         if len(smiles_batch)  > batch_size:
 
             ## Process batch
+            num_cores = os.cpu_count()
+
+            # Use 90% of the available cores
+            num_workers = int(0.9 * num_cores)
 
             # Generate path indexes
-            with ProcessPoolExecutor() as executor:
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
                 
                 args = [(smiles, mol_id, target_output_path, id_to_paths, smiles_to_paths, folder_idx) for (smiles, mol_id) in zip(smiles_batch, batch_mol_ids)]
                 results = list(tqdm(executor.map(generate_and_save_graphs, args), desc="Generating graphs", total=len(smiles_batch)))
