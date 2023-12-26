@@ -1,12 +1,11 @@
 import os, sqlite3
 from concurrent.futures import ProcessPoolExecutor
 from molytica_m.data_tools import id_mapping_tools
-from molytica_m.data_tools.graph_tools import graph_tools
+from molytica_m.data_tools.graph_tools import graph_tools_pytorch
 from molytica_m.data_tools import alpha_fold_tools
 from Bio.PDB import PDBParser
 import gzip
 import numpy as np
-from tqdm import tqdm
 from tqdm import tqdm
 import requests
 import tarfile
@@ -20,7 +19,40 @@ import h5py
 import sys
 import os
 
+
 # Curate chembl data for all species and store in a folder system
+
+def download_and_extract_chembl(url="https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_33_sqlite.tar.gz", target_path="data/curated_chembl/"):
+    if not os.path.exists("data/curated_chembl"):
+        os.makedirs("data/curated_chembl")
+    # Download the file from the given URL
+    response = requests.get(url, stream=True)
+    if response.status_code == 200:
+        total_size_in_bytes = int(response.headers.get('content-length', 0))
+        chunk_size = 1024 # 1 Kilobyte
+        tar_file_path = os.path.join(target_path, 'chembl.tar.gz')
+        
+        # Save the tar.gz file with a progress bar
+        with open(tar_file_path, 'wb') as file, tqdm(
+            desc=tar_file_path,
+            total=total_size_in_bytes,
+            unit='iB',
+            unit_scale=True,
+            unit_divisor=1024,
+        ) as bar:
+            for data in response.iter_content(chunk_size=chunk_size):
+                size = file.write(data)
+                bar.update(size)
+
+        # Extract the tar.gz file
+        with tarfile.open(tar_file_path, "r:gz") as tar:
+            tar.extractall(path=target_path)
+        
+        # Clean up the downloaded tar.gz file
+        os.remove(tar_file_path)
+        print(f"ChEMBL database extracted to {target_path}")
+    else:
+        print("Failed to download the file")
 
 
 
@@ -38,19 +70,19 @@ def extract_af_protein_graph(arg_tuple):
         for chain in model:
             for residue in chain:
                 for atom in residue:
-                    atom_type_numeric = graph_tools.get_atom_type_numeric(atom.element.strip())
+                    atom_type_numeric = graph_tools_pytorch.get_atom_type_numeric(atom.element.strip())
                     atom_data = [atom_type_numeric, *atom.get_coord()]
                     protein_atom_cloud_array.append(atom_data)
     
     protein_atom_cloud_array = np.array(protein_atom_cloud_array)
     atom_point_cloud_atom_types = protein_atom_cloud_array[:, 0]  # Changed from :1 to 0 for correct indexing
-    n_atom_types = len(graph_tools.atom_type_to_float.values())
+    n_atom_types = len(graph_tools_pytorch.atom_type_to_float.values())
 
     # One-hot encode the atom types
     features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int)]
 
     # Create the graph
-    graph = graph_tools.csr_graph_from_point_cloud(protein_atom_cloud_array[:, 1:], STANDARD_BOND_LENGTH=1.5)
+    graph = graph_tools_pytorch.csr_graph_from_point_cloud(protein_atom_cloud_array[:, 1:], STANDARD_BOND_LENGTH=1.5)
 
     # Convert CSR graph to PyTorch Geometric format
     edge_index = np.vstack(graph.nonzero())
@@ -125,7 +157,7 @@ def generate_and_save_graphs(args, retry=True):
         if os.path.exists(generic_save_path):
             return
         
-        feature_list, csr_matrix_list = graph_tools.get_raw_graphs_from_smiles_string(smiles, num_conformations=5)
+        feature_list, csr_matrix_list = graph_tools_pytorch.get_raw_graphs_from_smiles_string(smiles, num_conformations=5)
 
         for i, (features, csr_matrix) in enumerate(zip(feature_list, csr_matrix_list)):
             save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{mol_id}_{i}.h5')
@@ -133,7 +165,7 @@ def generate_and_save_graphs(args, retry=True):
                 os.makedirs(os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}'))
 
             # Save each graph in h5 file format
-            graph_tools.save_features_csr_matrix_to_hdf5(features, csr_matrix, save_path)
+            graph_tools_pytorch.save_features_csr_matrix_to_hdf5(features, csr_matrix, save_path)
 
             save_paths.append(save_path)
 
@@ -408,6 +440,8 @@ def main():
     target_output_path = "data/curated_chembl"
     target_protein_metadata_output_path = "data/curated_chembl/af_metadata"
     curated_chembl_db_path = os.path.join(curated_chembl_db_folder_path, new_db_name)
+
+    download_and_extract_chembl()
 
     id_mapping_tools.generate_index_dictionaries(raw_chembl_db_path)
 
