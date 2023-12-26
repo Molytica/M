@@ -18,6 +18,8 @@ import json
 import h5py
 import sys
 import os
+import shutil
+
 
 
 # Curate chembl data for all species and store in a folder system
@@ -25,6 +27,11 @@ import os
 def download_and_extract_chembl(url="https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_33_sqlite.tar.gz", target_path="data/curated_chembl/"):
     if not os.path.exists("data/curated_chembl"):
         os.makedirs("data/curated_chembl")
+
+    
+    if "chembl_33.db" in os.listdir(target_path):
+        print("Already extracted chemble database. Skipping...")
+        return
     # Download the file from the given URL
     response = requests.get(url, stream=True)
     if response.status_code == 200:
@@ -53,7 +60,20 @@ def download_and_extract_chembl(url="https://ftp.ebi.ac.uk/pub/databases/chembl/
         print(f"ChEMBL database extracted to {target_path}")
     else:
         print("Failed to download the file")
+    
+        
+    source_path = os.path.join(target_path, "chembl_33", "chembl_33_sqlite", "chembl_33.db")
+    destination_path = os.path.join(target_path, "chembl_33.db")
 
+    if os.path.isfile(source_path):
+        os.rename(source_path, destination_path)
+    else:
+        print(f"The file {source_path} does not exist.")
+
+    shutil.rmtree(os.path.join(target_path, "chembl_33", "chembl_33_sqlite"))
+    shutil.rmtree(os.path.join(target_path, "chembl_33"))
+
+    print("ChEMBL database extracted to {target_path}")
 
 
 def extract_af_protein_graph(arg_tuple):
