@@ -11,7 +11,6 @@ from tqdm import tqdm
 import requests
 import tarfile
 import h5py
-from molytica_m.data_tools import alpha_fold_tools
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -328,7 +327,7 @@ def download_and_extract(url, target_dir):
         print("Folder empty. Extracting...")
         extract_tar_file(file_path, target_dir)
 
-def download_alphafold_data(target_output_path="data/alpha_fold_data"):
+def download_alphafold_data(target_output_path="data/curated_chembl/alpha_fold_data"):
     url = "https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000005640_9606_HUMAN_v4.tar"
     download_and_extract(url, target_output_path)
 

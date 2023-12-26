@@ -21,6 +21,5 @@ setup(
         'torch_geometric',
         'openai',
         'scanpy',
-        'openbabel',
     ],
 )
