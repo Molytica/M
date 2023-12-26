@@ -11,6 +11,7 @@ def generate_alpha_fold_data(af_data_folder_path="data/curated_chembl/alpha_fold
 
 def get_alphafold_uniprot_ids(af_data_folder_path="data/curated_chembl/alpha_fold_data"):
     global loaded
+    global alpha_fold_data  # Declare alpha_fold_data as global
     if not loaded:
         alpha_fold_data = generate_alpha_fold_data(af_data_folder_path)
         if alpha_fold_data is None:

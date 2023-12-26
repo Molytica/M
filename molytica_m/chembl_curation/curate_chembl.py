@@ -19,8 +19,8 @@ import h5py
 import sys
 import os
 import shutil
-
-
+from rdkit import Chem
+from rdkit.Chem import Descriptors
 
 # Curate chembl data for all species and store in a folder system
 
@@ -248,11 +248,27 @@ def create_SMILES_graphs(target_output_path):
         json.dump(smiles_to_paths, f)
 
 
-def create_SMILES_metadata(chembl_db_path, target_output_path):
-    # Perform data creation into the target_output folder
-    # Add your code here
+def calculate_descriptors(smiles_string):
+    # Convert the SMILES string to a molecule object
+    molecule = Chem.MolFromSmiles(smiles_string)
 
-    # Use rdkit to create molecular descriptors (molecule metadata) for each SMILES string
+    # Calculate all available descriptors
+    descriptors = {}
+    for descriptor_name, descriptor_fn in Descriptors.descList:
+        try:
+            descriptors[descriptor_name] = descriptor_fn(molecule)
+        except:
+            descriptors[descriptor_name] = None
+
+    return descriptors
+
+def create_SMILES_metadata(target_output_path):
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json"), 'r') as f:
+        id_to_smiles = json.load(f)
+    
+    for smiles in tqdm(id_to_smiles.values(), desc="Creating SMILES metadata"):
+        descriptors = calculate_descriptors(smiles)
+        print(descriptors)
 
     pass
 
@@ -473,8 +489,7 @@ def main():
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
     create_SMILES_graphs(target_output_path)
     
-    create_SMILES_metadata(raw_chembl_db_path, target_output_path)
-    create_SMILES_metadata(raw_chembl_db_path, target_output_path)
+    create_SMILES_metadata(target_output_path)
     create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
 
     # Molecule sequences are represented as smile strings
