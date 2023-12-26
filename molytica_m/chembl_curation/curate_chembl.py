@@ -209,10 +209,9 @@ def create_SMILES_graphs(target_output_path):
 
     id_to_paths = {}
     smiles_to_paths = {}
-
     folder_idx = 0
     batch_size = 100000
-    batches_per_folder = int(1000 / batch_size)
+    batches_per_folder = 1
     batches_in_current_folder = 0
     smiles_batch = []
     mol_id = 0
@@ -269,8 +268,6 @@ def create_SMILES_metadata(target_output_path):
     for smiles in tqdm(id_to_smiles.values(), desc="Creating SMILES metadata"):
         descriptors = calculate_descriptors(smiles)
         print(descriptors)
-
-    pass
 
 
 def create_PROTEIN_sequences(alphafold_folder_path, target_output_path): # Update this to make it work
@@ -389,7 +386,7 @@ def download_and_extract(url, target_dir):
         print("File {file_name} already exists...")
 
     print(f"Extracting {file_name}...")
-    if len(os.listdir(target_dir)) > 0:
+    if len(os.listdir(target_dir)) > 1:
         print("Folder not empty. Skipping extraction...")
     else:
         print("Folder empty. Extracting...")
