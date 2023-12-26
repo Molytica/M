@@ -510,11 +510,7 @@ def create_db_and_table(path="data/curated_chembl/SMILES_metadata.db"):
     conn.close()
 
 
-def add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, target_output_path):
-    db_path = os.path.join(target_output_path, "SMILES_metadata.db")
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-
+def add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c):
     # Prepare the batch of data
     data = [(mol_id, smile, *descriptor) for mol_id, smile, descriptor in zip(mol_ids, smiles, batch_descriptors)]
 
@@ -524,10 +520,6 @@ def add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, target_output_path):
 
     # Execute the SQL command
     c.executemany(sql_command, data)
-
-    # Commit the changes and close the connection
-    conn.commit()
-    conn.close()
 
 
 def create_SMILES_metadata(target_output_path="data/curated_chembl/"):
@@ -544,22 +536,25 @@ def create_SMILES_metadata(target_output_path="data/curated_chembl/"):
     batch_size = 10000
     num_batches = len(id_to_smiles) // batch_size + 1
 
-    for batch_num in tqdm(range(num_batches), desc="Creating SMILES metadata"):
-        batch_start = batch_num * batch_size
-        batch_end = min((batch_num + 1) * batch_size, len(id_to_smiles))
-        batch_id_to_smiles = {k: v for k, v in id_to_smiles.items() if batch_start <= int(k) < batch_end}
+    with sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
 
-        num_cores = os.cpu_count()
-        num_workers = int(num_cores * 0.9)
+        for batch_num in tqdm(range(num_batches), desc="Creating SMILES metadata"):
+            batch_start = batch_num * batch_size
+            batch_end = min((batch_num + 1) * batch_size, len(id_to_smiles))
+            batch_id_to_smiles = {k: v for k, v in id_to_smiles.items() if batch_start <= int(k) < batch_end}
 
-        with ProcessPoolExecutor(max_workers=num_workers) as executor:
-            batch_descriptors = executor.map(calculate_descriptors, batch_id_to_smiles.values())
+            num_cores = os.cpu_count()
+            num_workers = int(num_cores * 0.9)
 
-        smiles = list(batch_id_to_smiles.values())
-        mol_ids = list(batch_id_to_smiles.keys())
-        batch_descriptors = list(batch_descriptors)
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                batch_descriptors = executor.map(calculate_descriptors, batch_id_to_smiles.values())
 
-        add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, target_output_path)
+            smiles = list(batch_id_to_smiles.values())
+            mol_ids = list(batch_id_to_smiles.keys())
+            batch_descriptors = list(batch_descriptors)
+
+            add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c)
 
 
 def main():
