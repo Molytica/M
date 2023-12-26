@@ -468,6 +468,100 @@ def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/"): # AF-
         with h5py.File(file_name, 'w') as h5file:
             h5file.create_dataset('metadata', data=np.array(metadata, dtype=float))
 
+
+def calculate_descriptors(smiles_string):
+    # Convert the SMILES string to a molecule object
+    molecule = Chem.MolFromSmiles(smiles_string)
+
+    # Calculate all available descriptors
+    descriptors = {}
+    for descriptor_name, descriptor_fn in Descriptors.descList:
+        try:
+            descriptors[descriptor_name] = descriptor_fn(molecule)
+        except:
+            descriptors[descriptor_name] = None
+
+    return descriptors
+
+
+def create_db_and_table(path="data/curated_chembl/SMILES_metadata.db"):
+    # Connect to the SQLite database
+    conn = sqlite3.connect(path)
+
+    # Create a cursor object
+    c = conn.cursor()
+
+    # Define the SQL command to create the table
+    sql_command = """
+    CREATE TABLE mol_metadata (
+        mol_molytica_id INTEGER,
+        mol_canonical_smiles TEXT,
+        {}
+    );
+    """.format(", ".join("{} REAL".format(desc) for desc in descriptors.keys()))
+
+    # Execute the SQL command
+    c.execute(sql_command)
+
+    # Commit the changes
+    conn.commit()
+
+    # Close the connection
+    conn.close()
+
+
+def add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, target_output_path):
+    db_path = os.path.join(target_output_path, "SMILES_metadata.db")
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+
+    # Prepare the batch of data
+    data = [(mol_id, smile, *descriptor) for mol_id, smile, descriptor in zip(mol_ids, smiles, batch_descriptors)]
+
+    # Define the SQL command for batch insertion
+    placeholders = ', '.join(['?'] * (2 + len(batch_descriptors[0])))  # 2 for mol_id and smile, rest for descriptors
+    sql_command = f"INSERT INTO mol_metadata VALUES ({placeholders})"
+
+    # Execute the SQL command
+    c.executemany(sql_command, data)
+
+    # Commit the changes and close the connection
+    conn.commit()
+    conn.close()
+
+
+def create_SMILES_metadata(target_output_path="data/curated_chembl/"):
+    db_path = os.path.join(target_output_path, "SMILES_metadata.db")
+    if os.path.exists(db_path):
+        print("SMILES metadata already exists. Skipping creation.")
+        return
+
+    create_db_and_table()
+
+    with open(os.path.join("data", "curated_chembl", "molecule_id_mappings", "id_to_smiles.json"), 'r') as f:
+        id_to_smiles = json.load(f)
+   
+    batch_size = 10000
+    num_batches = len(id_to_smiles) // batch_size + 1
+
+    for batch_num in tqdm(range(num_batches), desc="Creating SMILES metadata"):
+        batch_start = batch_num * batch_size
+        batch_end = min((batch_num + 1) * batch_size, len(id_to_smiles))
+        batch_id_to_smiles = {k: v for k, v in id_to_smiles.items() if batch_start <= int(k) < batch_end}
+
+        num_cores = os.cpu_count()
+        num_workers = int(num_cores * 0.9)
+
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            batch_descriptors = executor.map(calculate_descriptors, batch_id_to_smiles.values())
+
+        smiles = list(batch_id_to_smiles.values())
+        mol_ids = list(batch_id_to_smiles.keys())
+        batch_descriptors = list(batch_descriptors)
+
+        add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, target_output_path)
+
+
 def main():
     alphafold_folder_path = "data/curated_chembl/alpha_fold_data"
     raw_chembl_db_path = "data/curated_chembl/chembl_33.db"
