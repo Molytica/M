@@ -172,6 +172,7 @@ def generate_and_save_graphs(args, retry=True):
     save_paths = []
 
     try:
+        # Try Generating Multiple Graphs for a 
         smiles, mol_id, target_output_path, id_to_paths, smiles_to_paths, folder_idx = args
         generic_save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{mol_id}_{0}.h5')
         if os.path.exists(generic_save_path):
