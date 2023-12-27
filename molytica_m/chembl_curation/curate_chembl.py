@@ -75,11 +75,12 @@ def download_and_extract_chembl(url="https://ftp.ebi.ac.uk/pub/databases/chembl/
 
     print("ChEMBL database extracted to {target_path}")
 
-
-def extract_af_protein_graph(arg_tuple):
-    input_folder_path, output_folder_path, af_uniprot_id = arg_tuple
-    input_file_name = os.path.join(input_folder_path, f"AF-{af_uniprot_id}-F1-model_v4.pdb.gz")
-    output_file_name = os.path.join(output_folder_path, f"{af_uniprot_id}_graph.h5")
+def extract_af_protein_graph_file(arg_tuple):
+    input_folder_path, output_folder_path, file_name = arg_tuple
+    input_file_name = os.path.join(input_folder_path, file_name)
+    uniprot_id = file_name.split("-")[1]
+    fold = file_name.split("-")[2]
+    output_file_name = os.path.join(output_folder_path, f"{uniprot_id}_{fold}_graph.h5")
     
     with gzip.open(input_file_name, 'rt') as file:
         parser = PDBParser(QUIET=True)
@@ -114,6 +115,7 @@ def extract_af_protein_graph(arg_tuple):
         h5file.create_dataset('edge_attr', data=edge_attr)
         h5file.create_dataset('atom_features', data=features)  # Save atom types as features
 
+
 def create_PROTEIN_graphs(input_folder_path="data/curated_chembl/alpha_fold_data/", output_folder_path="data/curated_chembl/af_protein_1_dot_5_angstrom_graphs/"):
     if not os.path.exists(output_folder_path):
         os.makedirs(output_folder_path)
@@ -123,11 +125,12 @@ def create_PROTEIN_graphs(input_folder_path="data/curated_chembl/alpha_fold_data
 
     arg_tuples = []
     af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
-    for af_uniprot_id in af_uniprots:
-        arg_tuples.append((input_folder_path, output_folder_path, af_uniprot_id))
+    for file_name in os.listdir(input_folder_path):
+        if "pdb.gz" in file_name:
+            arg_tuples.append((input_folder_path, output_folder_path, file_name))
 
     with ProcessPoolExecutor() as executor:
-        _results = list(tqdm(executor.map(extract_af_protein_graph, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
+        _results = list(tqdm(executor.map(extract_af_protein_graph_file, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
 
 
 def create_SMILES_id_mappings(chembl_db_path, target_output_path="data/curated_chembl/"):
@@ -483,32 +486,26 @@ def calculate_descriptors(smiles_string):
 
     return descriptors
 
-
 def create_db_and_table(path="data/curated_chembl/SMILES_metadata.db"):
-    # Connect to the SQLite database
-    conn = sqlite3.connect(path)
+    smiles_string = "CC(=O)OC1=CC=CC=C1C(=O)O"
+    descriptors = calculate_descriptors(smiles_string)
+    
+    # Connect to the SQLite database and create a cursor object
+    with sqlite3.connect(path) as conn:
+        c = conn.cursor()
 
-    # Create a cursor object
-    c = conn.cursor()
+        # Define the SQL command to create the table
+        sql_command = """
+        CREATE TABLE mol_metadata (
+            mol_molytica_id INTEGER,
+            mol_canonical_smiles TEXT,
+            {}
+        );
+        """.format(", ".join("{} REAL".format(desc) for desc in descriptors.keys()))
 
-    # Define the SQL command to create the table
-    sql_command = """
-    CREATE TABLE mol_metadata (
-        mol_molytica_id INTEGER,
-        mol_canonical_smiles TEXT,
-        {}
-    );
-    """.format(", ".join("{} REAL".format(desc) for desc in descriptors.keys()))
-
-    # Execute the SQL command
-    c.execute(sql_command)
-
-    # Commit the changes
-    conn.commit()
-
-    # Close the connection
-    conn.close()
-
+        # Execute the SQL command
+        c.execute(sql_command)
+    # The connection is automatically closed here
 
 def add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c):
     # Prepare the batch of data

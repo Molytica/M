@@ -30,6 +30,8 @@ atom_type_to_float = {
     'B': 11.0, # Boron
     'Si': 12.0,# Silicon
     'Se': 13.0,# Selenium
+    'Li': 14.0,# Lithium
+    'Zn': 15.0,# Zinc
 }
 
 def csr_graph_from_point_cloud(atom_point_cloud, STANDARD_BOND_LENGTH=1.5):
