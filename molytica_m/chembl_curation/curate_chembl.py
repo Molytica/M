@@ -423,9 +423,9 @@ def binary_encode(full_values_list, values):
             binary_encoded[value_to_index[value]] = 1
     return binary_encoded
 
-def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/"): # AF-UNIPROT-HOMO-SAPEINS protein metadata as binary vectors
+def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/", idmapping_file="molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv"): # AF-UNIPROT-HOMO-SAPEINS protein metadata as binary vectors
     print("Creating protein")
-    id_mappings = pd.read_table("molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv")
+    id_mappings = pd.read_table(idmapping_file)
     af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
 
     if len(save_path) > 0:
@@ -595,7 +595,7 @@ def main():
     curated_chembl_db_folder_path = "data/curated_chembl/"
     new_db_name = 'smiles_alphafold_v4_human_uniprot_chembl_bioactivities.db'
     protein_graph_output_path = "data/curated_chembl/af_protein_1_dot_5_angstrom_graphs"
-    protein_metadata_tsv_path = "/path/to/protein/metadata/tsv" # Curated metadata created by pasting all the uniprot ids into uniprot website id mapping tool
+    protein_metadata_tsv_path = "molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv" # Curated metadata created by pasting all the uniprot ids into uniprot website id mapping tool
     target_output_path = "data/curated_chembl"
     target_protein_metadata_output_path = "data/curated_chembl/af_metadata"
     curated_chembl_db_path = os.path.join(curated_chembl_db_folder_path, new_db_name)
@@ -607,7 +607,7 @@ def main():
     download_alphafold_data(alphafold_folder_path)
     curate_raw_chembl(raw_chembl_db_path, curated_chembl_db_folder_path, new_db_name)
     create_PROTEIN_graphs(alphafold_folder_path, protein_graph_output_path)
-    create_PROTEIN_metadata(target_protein_metadata_output_path)
+    create_PROTEIN_metadata(target_protein_metadata_output_path, protein_metadata_tsv_path)
 
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
     create_SMILES_graphs(target_output_path)
