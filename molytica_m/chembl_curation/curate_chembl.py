@@ -21,6 +21,11 @@ import os
 import shutil
 from rdkit import Chem
 from rdkit.Chem import Descriptors
+from Bio.PDB import PDBParser, Polypeptide
+from Bio.SeqUtils import seq1
+import os, gzip
+from molytica_m.data_tools import alpha_fold_tools
+from tqdm import tqdm
 
 # Curate chembl data for all species and store in a folder system
 
@@ -276,20 +281,6 @@ def create_SMILES_metadata(target_output_path):
     for smiles in tqdm(id_to_smiles.values(), desc="Creating SMILES metadata"):
         descriptors = calculate_descriptors(smiles)
         print(descriptors)
-
-
-def create_PROTEIN_sequences(alphafold_folder_path, target_output_path): # Update this to make it work
-    # Get list of Uniprot IDs
-    uniprot_ids = os.listdir(alphafold_folder_path)
-
-    # For each Uniprot ID, read the sequence.fasta file and write to a new file in the target_output_path
-    for uniprot_id in uniprot_ids:
-        sequence_file_path = os.path.join(alphafold_folder_path, uniprot_id, 'sequence.fasta')
-        if os.path.exists(sequence_file_path):
-            with open(sequence_file_path, 'r') as f_in:
-                sequence = f_in.read()
-            with open(os.path.join(target_output_path, f'{uniprot_id}_sequence.fasta'), 'w') as f_out:
-                f_out.write(sequence)
 
 def filter_tid(tid):
     if id_mapping_tools.tid_to_af_uniprot(tid):
@@ -552,6 +543,50 @@ def create_SMILES_metadata(target_output_path="data/curated_chembl/"):
             batch_descriptors = list(batch_descriptors)
 
             add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c)
+
+
+def get_amino_acid_sequence(uniprot_id, parser, alphafold_folder_path="data/curated_chembl/alpha_fold_data", fixed_size = None):
+    concat_character = " " # TODO: Find out what the correct character is to join the sequences
+
+    combined_sequence = []
+
+    pdb_file_name = os.path.join(alphafold_folder_path, f"AF-{uniprot_id}-F1-model_v4.pdb.gz")
+    with gzip.open(pdb_file_name, 'rt') as f_in:
+        structure = parser.get_structure("protein", f_in)
+        for model in structure:
+            for chain in model:
+                sequence = ""
+                for residue in chain:
+                    if Polypeptide.is_aa(residue):
+                        sequence += seq1(residue.get_resname()) + " "
+                combined_sequence.append(sequence)
+
+        combined_sequence = concat_character.join(combined_sequence)
+
+    if fixed_size:
+        if len(combined_sequence) < fixed_size:
+            combined_sequence += " " * (fixed_size - len(combined_sequence))
+        elif len(combined_sequence) > fixed_size:
+            combined_sequence = combined_sequence[:fixed_size]
+
+    return combined_sequence
+
+
+def create_PROTEIN_sequences(alphafold_folder_path="data/curated_chembl/alpha_fold_data", target_output_path="data/curated_chembl/protein_sequences"): # Update this to make it work
+    if os.path.exists(os.path.join(target_output_path, "protein_sequences")):
+        print("Protein sequences already created. Skipping...")
+        return
+    
+    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+
+    parser = PDBParser()
+    for af_uniprot in tqdm(af_uniprots, desc="Processing protein sequences"):
+        sequence = get_amino_acid_sequence(af_uniprot, parser, alphafold_folder_path, fixed_size=512)
+
+        file_name = os.path.join(target_output_path, "protein_sequences", f"{af_uniprot}_sequence.h5")
+        # Save the file in h5 format, the file is always a 512 character string
+        with h5py.File(file_name, 'w') as h5file:
+            h5file.create_dataset('sequence', data=np.array(sequence, dtype=str))
 
 
 def main():
