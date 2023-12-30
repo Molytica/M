@@ -10,7 +10,6 @@ from tqdm import tqdm
 import requests
 import tarfile
 import h5py
-from molytica_m.data_tools import alpha_fold_tools
 from tqdm import tqdm
 import pandas as pd
 import numpy as np
@@ -19,13 +18,25 @@ import json
 import h5py
 import sys
 import os
-
+import shutil
+from rdkit import Chem
+from rdkit.Chem import Descriptors
+from Bio.PDB import PDBParser, Polypeptide
+from Bio.SeqUtils import seq1
+import os, gzip
+from molytica_m.data_tools import alpha_fold_tools
+from tqdm import tqdm
 
 # Curate chembl data for all species and store in a folder system
 
 def download_and_extract_chembl(url="https://ftp.ebi.ac.uk/pub/databases/chembl/ChEMBLdb/latest/chembl_33_sqlite.tar.gz", target_path="data/curated_chembl/"):
     if not os.path.exists("data/curated_chembl"):
         os.makedirs("data/curated_chembl")
+
+    
+    if "chembl_33.db" in os.listdir(target_path):
+        print("Already extracted chemble database. Skipping...")
+        return
     # Download the file from the given URL
     response = requests.get(url, stream=True)
     if response.status_code == 200:
@@ -54,13 +65,27 @@ def download_and_extract_chembl(url="https://ftp.ebi.ac.uk/pub/databases/chembl/
         print(f"ChEMBL database extracted to {target_path}")
     else:
         print("Failed to download the file")
+    
+        
+    source_path = os.path.join(target_path, "chembl_33", "chembl_33_sqlite", "chembl_33.db")
+    destination_path = os.path.join(target_path, "chembl_33.db")
 
+    if os.path.isfile(source_path):
+        os.rename(source_path, destination_path)
+    else:
+        print(f"The file {source_path} does not exist.")
 
+    shutil.rmtree(os.path.join(target_path, "chembl_33", "chembl_33_sqlite"))
+    shutil.rmtree(os.path.join(target_path, "chembl_33"))
 
-def extract_af_protein_graph(arg_tuple):
-    input_folder_path, output_folder_path, af_uniprot_id = arg_tuple
-    input_file_name = os.path.join(input_folder_path, f"AF-{af_uniprot_id}-F1-model_v4.pdb.gz")
-    output_file_name = os.path.join(output_folder_path, f"{af_uniprot_id}_graph.h5")
+    print("ChEMBL database extracted to {target_path}")
+
+def extract_af_protein_graph_file(arg_tuple):
+    input_folder_path, output_folder_path, file_name = arg_tuple
+    input_file_name = os.path.join(input_folder_path, file_name)
+    uniprot_id = file_name.split("-")[1]
+    fold = file_name.split("-")[2]
+    output_file_name = os.path.join(output_folder_path, f"{uniprot_id}_{fold}_graph.h5")
     
     with gzip.open(input_file_name, 'rt') as file:
         parser = PDBParser(QUIET=True)
@@ -95,6 +120,7 @@ def extract_af_protein_graph(arg_tuple):
         h5file.create_dataset('edge_attr', data=edge_attr)
         h5file.create_dataset('atom_features', data=features)  # Save atom types as features
 
+
 def create_PROTEIN_graphs(input_folder_path="data/curated_chembl/alpha_fold_data/", output_folder_path="data/curated_chembl/af_protein_1_dot_5_angstrom_graphs/"):
     if not os.path.exists(output_folder_path):
         os.makedirs(output_folder_path)
@@ -104,11 +130,12 @@ def create_PROTEIN_graphs(input_folder_path="data/curated_chembl/alpha_fold_data
 
     arg_tuples = []
     af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
-    for af_uniprot_id in af_uniprots:
-        arg_tuples.append((input_folder_path, output_folder_path, af_uniprot_id))
+    for file_name in os.listdir(input_folder_path):
+        if "pdb.gz" in file_name:
+            arg_tuples.append((input_folder_path, output_folder_path, file_name))
 
     with ProcessPoolExecutor() as executor:
-        _results = list(tqdm(executor.map(extract_af_protein_graph, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
+        _results = list(tqdm(executor.map(extract_af_protein_graph_file, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
 
 
 def create_SMILES_id_mappings(chembl_db_path, target_output_path="data/curated_chembl/"):
@@ -153,9 +180,11 @@ def generate_and_save_graphs(args, retry=True):
     save_paths = []
 
     try:
+        # Try Generating Multiple Graphs for a 
         smiles, mol_id, target_output_path, id_to_paths, smiles_to_paths, folder_idx = args
         generic_save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{mol_id}_{0}.h5')
         if os.path.exists(generic_save_path):
+            print("exists")
             return
         
         feature_list, csr_matrix_list = graph_tools_pytorch.get_raw_graphs_from_smiles_string(smiles, num_conformations=5)
@@ -180,6 +209,7 @@ def generate_and_save_graphs(args, retry=True):
         if retry:
             print("Retrying...")
             generate_and_save_graphs(args, retry=False)
+    
 
 def create_SMILES_graphs(target_output_path):
     with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json"), 'r') as f:
@@ -190,10 +220,9 @@ def create_SMILES_graphs(target_output_path):
 
     id_to_paths = {}
     smiles_to_paths = {}
-
     folder_idx = 0
-    batch_size = 100000
-    batches_per_folder = int(1000 / batch_size)
+    batch_size = 10000
+    batches_per_folder = 1
     batches_in_current_folder = 0
     smiles_batch = []
     mol_id = 0
@@ -203,12 +232,16 @@ def create_SMILES_graphs(target_output_path):
         batch_mol_ids.append(mol_id)
         mol_id += 1
 
-        if len(smiles_batch)  > batch_size:
+        if len(smiles_batch) > batch_size:
 
             ## Process batch
+            num_cores = os.cpu_count()
+
+            # Use 90% of the available cores
+            num_workers = int(0.9 * num_cores)
 
             # Generate path indexes
-            with ProcessPoolExecutor() as executor:
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
                 
                 args = [(smiles, mol_id, target_output_path, id_to_paths, smiles_to_paths, folder_idx) for (smiles, mol_id) in zip(smiles_batch, batch_mol_ids)]
                 results = list(tqdm(executor.map(generate_and_save_graphs, args), desc="Generating graphs", total=len(smiles_batch)))
@@ -218,38 +251,38 @@ def create_SMILES_graphs(target_output_path):
             smiles_batch = []
             batch_mol_ids = []
 
+            with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_path.json"), 'w') as f:
+                json.dump(id_to_paths, f)
+            
+            with open(os.path.join(target_output_path, "molecule_id_mappings", "smiles_to_path.json"), 'w') as f:
+                json.dump(smiles_to_paths, f)
+
         if batches_in_current_folder > batches_per_folder:
             folder_idx += 1
             batches_in_current_folder = 0
 
-    with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_path.json"), 'w') as f:
-        json.dump(id_to_paths, f)
+
+def calculate_descriptors(smiles_string):
+    # Convert the SMILES string to a molecule object
+    molecule = Chem.MolFromSmiles(smiles_string)
+
+    # Calculate all available descriptors
+    descriptors = {}
+    for descriptor_name, descriptor_fn in Descriptors.descList:
+        try:
+            descriptors[descriptor_name] = descriptor_fn(molecule)
+        except:
+            descriptors[descriptor_name] = None
+
+    return descriptors
+
+def create_SMILES_metadata(target_output_path):
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json"), 'r') as f:
+        id_to_smiles = json.load(f)
     
-    with open(os.path.join(target_output_path, "molecule_id_mappings", "smiles_to_path.json"), 'w') as f:
-        json.dump(smiles_to_paths, f)
-
-
-def create_SMILES_metadata(chembl_db_path, target_output_path):
-    # Perform data creation into the target_output folder
-    # Add your code here
-
-    # Use rdkit to create molecular descriptors (molecule metadata) for each SMILES string
-
-    pass
-
-
-def create_PROTEIN_sequences(alphafold_folder_path, target_output_path): # Update this to make it work
-    # Get list of Uniprot IDs
-    uniprot_ids = os.listdir(alphafold_folder_path)
-
-    # For each Uniprot ID, read the sequence.fasta file and write to a new file in the target_output_path
-    for uniprot_id in uniprot_ids:
-        sequence_file_path = os.path.join(alphafold_folder_path, uniprot_id, 'sequence.fasta')
-        if os.path.exists(sequence_file_path):
-            with open(sequence_file_path, 'r') as f_in:
-                sequence = f_in.read()
-            with open(os.path.join(target_output_path, f'{uniprot_id}_sequence.fasta'), 'w') as f_out:
-                f_out.write(sequence)
+    for smiles in tqdm(id_to_smiles.values(), desc="Creating SMILES metadata"):
+        descriptors = calculate_descriptors(smiles)
+        print(descriptors)
 
 def filter_tid(tid):
     if id_mapping_tools.tid_to_af_uniprot(tid):
@@ -354,13 +387,13 @@ def download_and_extract(url, target_dir):
         print("File {file_name} already exists...")
 
     print(f"Extracting {file_name}...")
-    if len(os.listdir(target_dir)) > 0:
+    if len(os.listdir(target_dir)) > 1:
         print("Folder not empty. Skipping extraction...")
     else:
         print("Folder empty. Extracting...")
         extract_tar_file(file_path, target_dir)
 
-def download_alphafold_data(target_output_path="data/alpha_fold_data"):
+def download_alphafold_data(target_output_path="data/curated_chembl/alpha_fold_data"):
     url = "https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000005640_9606_HUMAN_v4.tar"
     download_and_extract(url, target_output_path)
 
@@ -392,9 +425,9 @@ def binary_encode(full_values_list, values):
             binary_encoded[value_to_index[value]] = 1
     return binary_encoded
 
-def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/"): # AF-UNIPROT-HOMO-SAPEINS protein metadata as binary vectors
+def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/", idmapping_file="molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv"): # AF-UNIPROT-HOMO-SAPEINS protein metadata as binary vectors
     print("Creating protein")
-    id_mappings = pd.read_table("molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv")
+    id_mappings = pd.read_table(idmapping_file)
     af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
 
     if len(save_path) > 0:
@@ -431,13 +464,140 @@ def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/"): # AF-
         with h5py.File(file_name, 'w') as h5file:
             h5file.create_dataset('metadata', data=np.array(metadata, dtype=float))
 
+
+def calculate_descriptors(smiles_string):
+    # Convert the SMILES string to a molecule object
+    molecule = Chem.MolFromSmiles(smiles_string)
+
+    # Calculate all available descriptors
+    descriptors = {}
+    for descriptor_name, descriptor_fn in Descriptors.descList:
+        try:
+            descriptors[descriptor_name] = descriptor_fn(molecule)
+        except:
+            descriptors[descriptor_name] = None
+
+    return descriptors
+
+def create_db_and_table(path="data/curated_chembl/SMILES_metadata.db"):
+    smiles_string = "CC(=O)OC1=CC=CC=C1C(=O)O"
+    descriptors = calculate_descriptors(smiles_string)
+    
+    # Connect to the SQLite database and create a cursor object
+    with sqlite3.connect(path) as conn:
+        c = conn.cursor()
+
+        # Define the SQL command to create the table
+        sql_command = """
+        CREATE TABLE mol_metadata (
+            mol_molytica_id INTEGER,
+            mol_canonical_smiles TEXT,
+            {}
+        );
+        """.format(", ".join("{} REAL".format(desc) for desc in descriptors.keys()))
+
+        # Execute the SQL command
+        c.execute(sql_command)
+    # The connection is automatically closed here
+
+def add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c):
+    # Prepare the batch of data
+    data = [(mol_id, smile, *descriptor) for mol_id, smile, descriptor in zip(mol_ids, smiles, batch_descriptors)]
+
+    # Define the SQL command for batch insertion
+    placeholders = ', '.join(['?'] * (2 + len(batch_descriptors[0])))  # 2 for mol_id and smile, rest for descriptors
+    sql_command = f"INSERT INTO mol_metadata VALUES ({placeholders})"
+
+    # Execute the SQL command
+    c.executemany(sql_command, data)
+
+
+def create_SMILES_metadata(target_output_path="data/curated_chembl/"):
+    db_path = os.path.join(target_output_path, "SMILES_metadata.db")
+    if os.path.exists(db_path):
+        print("SMILES metadata already exists. Skipping creation.")
+        return
+
+    create_db_and_table()
+
+    with open(os.path.join("data", "curated_chembl", "molecule_id_mappings", "id_to_smiles.json"), 'r') as f:
+        id_to_smiles = json.load(f)
+   
+    batch_size = 10000
+    num_batches = len(id_to_smiles) // batch_size + 1
+
+    with sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+
+        for batch_num in tqdm(range(num_batches), desc="Creating SMILES metadata"):
+            batch_start = batch_num * batch_size
+            batch_end = min((batch_num + 1) * batch_size, len(id_to_smiles))
+            batch_id_to_smiles = {k: v for k, v in id_to_smiles.items() if batch_start <= int(k) < batch_end}
+
+            num_cores = os.cpu_count()
+            num_workers = int(num_cores * 0.9)
+
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                batch_descriptors = executor.map(calculate_descriptors, batch_id_to_smiles.values())
+
+            smiles = list(batch_id_to_smiles.values())
+            mol_ids = list(batch_id_to_smiles.keys())
+            batch_descriptors = list(batch_descriptors)
+
+            add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c)
+
+
+def get_amino_acid_sequence(uniprot_id, parser, alphafold_folder_path="data/curated_chembl/alpha_fold_data", fixed_size = None):
+    concat_character = " " # TODO: Find out what the correct character is to join the sequences
+
+    combined_sequence = []
+
+    pdb_file_name = os.path.join(alphafold_folder_path, f"AF-{uniprot_id}-F1-model_v4.pdb.gz")
+    with gzip.open(pdb_file_name, 'rt') as f_in:
+        structure = parser.get_structure("protein", f_in)
+        for model in structure:
+            for chain in model:
+                sequence = ""
+                for residue in chain:
+                    if Polypeptide.is_aa(residue):
+                        sequence += seq1(residue.get_resname()) + " "
+                combined_sequence.append(sequence)
+
+        combined_sequence = concat_character.join(combined_sequence)
+
+    if fixed_size:
+        if len(combined_sequence) < fixed_size:
+            combined_sequence += " " * (fixed_size - len(combined_sequence))
+        elif len(combined_sequence) > fixed_size:
+            combined_sequence = combined_sequence[:fixed_size]
+
+    return combined_sequence
+
+
+def create_PROTEIN_sequences(alphafold_folder_path="data/curated_chembl/alpha_fold_data", target_output_path="data/curated_chembl/protein_sequences"): # Update this to make it work
+    if os.path.exists(os.path.join(target_output_path, "protein_sequences")):
+        print("Protein sequences already created. Skipping...")
+        return
+    
+    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+
+    parser = PDBParser()
+    for af_uniprot in tqdm(af_uniprots, desc="Processing protein sequences"):
+        sequence = get_amino_acid_sequence(af_uniprot, parser, alphafold_folder_path, fixed_size=512)
+
+        file_name = os.path.join(target_output_path, "protein_sequences", f"{af_uniprot}_sequence.h5")
+        # Save the file in h5 format, the file is always a 512 character string
+        with h5py.File(file_name, 'w') as h5file:
+            h5file.create_dataset('sequence', data=np.array(sequence, dtype=str))
+
+
 def main():
     alphafold_folder_path = "data/curated_chembl/alpha_fold_data"
     raw_chembl_db_path = "data/curated_chembl/chembl_33.db"
     curated_chembl_db_folder_path = "data/curated_chembl/"
     new_db_name = 'smiles_alphafold_v4_human_uniprot_chembl_bioactivities.db'
     protein_graph_output_path = "data/curated_chembl/af_protein_1_dot_5_angstrom_graphs"
-    protein_metadata_tsv_path = "/path/to/protein/metadata/tsv" # Curated metadata created by pasting all the uniprot ids into uniprot website id mapping tool
+    protein_metadata_tsv_path = "molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv" # Curated metadata created by pasting all the uniprot ids into uniprot website id mapping tool
     target_output_path = "data/curated_chembl"
     target_protein_metadata_output_path = "data/curated_chembl/af_metadata"
     curated_chembl_db_path = os.path.join(curated_chembl_db_folder_path, new_db_name)
@@ -449,13 +609,12 @@ def main():
     download_alphafold_data(alphafold_folder_path)
     curate_raw_chembl(raw_chembl_db_path, curated_chembl_db_folder_path, new_db_name)
     create_PROTEIN_graphs(alphafold_folder_path, protein_graph_output_path)
-    create_PROTEIN_metadata(target_protein_metadata_output_path)
+    create_PROTEIN_metadata(target_protein_metadata_output_path, protein_metadata_tsv_path)
 
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
     create_SMILES_graphs(target_output_path)
     
-    create_SMILES_metadata(raw_chembl_db_path, target_output_path)
-    create_SMILES_metadata(raw_chembl_db_path, target_output_path)
+    create_SMILES_metadata(target_output_path)
     create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
 
     # Molecule sequences are represented as smile strings

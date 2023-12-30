@@ -8,3 +8,5 @@ __pycache__/*
 *egg-info*
 __pycache__/
 *.py[cod]
+*.egg-info/
+*.egg-info
