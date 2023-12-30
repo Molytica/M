@@ -184,6 +184,7 @@ def generate_and_save_graphs(args, retry=True):
         smiles, mol_id, target_output_path, id_to_paths, smiles_to_paths, folder_idx = args
         generic_save_path = os.path.join(target_output_path, 'molecule_graphs', f'{folder_idx}', f'{mol_id}_{0}.h5')
         if os.path.exists(generic_save_path):
+            print("exists")
             return
         
         feature_list, csr_matrix_list = graph_tools_pytorch.get_raw_graphs_from_smiles_string(smiles, num_conformations=5)
@@ -208,6 +209,7 @@ def generate_and_save_graphs(args, retry=True):
         if retry:
             print("Retrying...")
             generate_and_save_graphs(args, retry=False)
+    
 
 def create_SMILES_graphs(target_output_path):
     with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json"), 'r') as f:
@@ -219,7 +221,7 @@ def create_SMILES_graphs(target_output_path):
     id_to_paths = {}
     smiles_to_paths = {}
     folder_idx = 0
-    batch_size = 100000
+    batch_size = 10000
     batches_per_folder = 1
     batches_in_current_folder = 0
     smiles_batch = []
@@ -230,7 +232,7 @@ def create_SMILES_graphs(target_output_path):
         batch_mol_ids.append(mol_id)
         mol_id += 1
 
-        if len(smiles_batch)  > batch_size:
+        if len(smiles_batch) > batch_size:
 
             ## Process batch
             num_cores = os.cpu_count()
@@ -249,15 +251,15 @@ def create_SMILES_graphs(target_output_path):
             smiles_batch = []
             batch_mol_ids = []
 
+            with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_path.json"), 'w') as f:
+                json.dump(id_to_paths, f)
+            
+            with open(os.path.join(target_output_path, "molecule_id_mappings", "smiles_to_path.json"), 'w') as f:
+                json.dump(smiles_to_paths, f)
+
         if batches_in_current_folder > batches_per_folder:
             folder_idx += 1
             batches_in_current_folder = 0
-
-    with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_path.json"), 'w') as f:
-        json.dump(id_to_paths, f)
-    
-    with open(os.path.join(target_output_path, "molecule_id_mappings", "smiles_to_path.json"), 'w') as f:
-        json.dump(smiles_to_paths, f)
 
 
 def calculate_descriptors(smiles_string):
