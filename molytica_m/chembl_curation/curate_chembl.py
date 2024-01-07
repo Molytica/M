@@ -638,12 +638,13 @@ def get_protein_embeddings(uniprot_ids):
         embedding_repr = model(input_ids=input_ids,attention_mask=attention_mask)
 
     # extract embeddings for the first ([0,:]) sequence in the batch while removing padded & special tokens ([0,:7]) 
-    for i, uniprot_id in enumerate(uniprot_sequences.keys()):
-        emb = embedding_repr.last_hidden_state[i,:len(uniprot_sequences[uniprot_id])]
-        emb_per_protein = emb.mean(dim=0) # shape (1024)
+    for i, uniprot_id in tqdm(enumerate(uniprot_sequences.keys()), total=len(uniprot_sequences), desc="Processing embeddings"):
+        emb = embedding_repr.last_hidden_state[i,:len(uniprot_sequences[uniprot_id].replace(" ", ""))]
+        emb_per_protein = emb.mean(dim=0)  # shape (1024)
 
         with h5py.File(os.path.join("data/curated_chembl/af_protein_embeddings", f"{uniprot_id}_embeddings.h5"), 'w') as h5file:
             h5file.create_dataset('embeddings', data=np.array(emb_per_protein, dtype=float))
+
 
 
 
