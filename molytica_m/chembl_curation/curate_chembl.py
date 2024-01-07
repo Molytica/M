@@ -610,12 +610,10 @@ def main():
     curate_raw_chembl(raw_chembl_db_path, curated_chembl_db_folder_path, new_db_name)
     create_PROTEIN_graphs(alphafold_folder_path, protein_graph_output_path)
     create_PROTEIN_metadata(target_protein_metadata_output_path, protein_metadata_tsv_path)
-
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
-    create_SMILES_graphs(target_output_path)
-    
     create_SMILES_metadata(target_output_path)
     create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
+    create_SMILES_graphs(target_output_path)
 
     # Molecule sequences are represented as smile strings
 

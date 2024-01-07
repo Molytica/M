@@ -1,5 +1,5 @@
 
-def get_model_input_interface(smiles, uniprot_id):
+def get_data(smiles, uniprot_id):
     gat_in_channels = 64
     gat_out_channels = 128
     chembert_model_name = "chembert-base"
