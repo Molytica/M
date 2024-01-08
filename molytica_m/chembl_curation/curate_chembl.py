@@ -645,8 +645,25 @@ def get_protein_embeddings(uniprot_ids):
         with h5py.File(os.path.join("data/curated_chembl/af_protein_embeddings", f"{uniprot_id}_embeddings.h5"), 'w') as h5file:
             h5file.create_dataset('embeddings', data=np.array(emb_per_protein, dtype=float))
 
+def read_protein_embedding(uniprot_id, directory="data/curated_chembl/af_protein_embeddings"):
+    file_path = os.path.join(directory, f"{uniprot_id}_embeddings.h5")
+    
+    if not os.path.exists(file_path):
+        print(f"File not found for UniProt ID {uniprot_id}")
+        return None
 
-
+    try:
+        with h5py.File(file_path, 'r') as h5file:
+            # Assuming the dataset is named 'embeddings'
+            if 'embeddings' in h5file:
+                embeddings = np.array(h5file['embeddings'])
+                return embeddings
+            else:
+                print(f"'embeddings' dataset not found in {file_path}")
+                return None
+    except Exception as e:
+        print(f"An error occurred while reading {file_path}: {e}")
+        return None
 
 def main():
     # SMILES string stand for "simplified molecular-input line-entry system" and are string identifiers for molecule structures
