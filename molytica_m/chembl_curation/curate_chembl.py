@@ -384,7 +384,7 @@ def download_and_extract(url, target_dir):
         print(f"Downloading {file_name}...")
         download_file(url, file_path)
     else:
-        print("File {file_name} already exists...")
+        print(f"File {file_name} already exists...")
 
     print(f"Extracting {file_name}...")
     if len(os.listdir(target_dir)) > 1:
@@ -548,7 +548,7 @@ def create_SMILES_metadata(target_output_path="data/curated_chembl/"):
 
 
 def get_amino_acid_sequence(uniprot_id, parser, alphafold_folder_path="data/curated_chembl/alpha_fold_data", fixed_size = None):
-    concat_character = " " # TODO: Find out what the correct character is to join the sequences
+    concat_character = ""
 
     combined_sequence = []
 
@@ -560,7 +560,7 @@ def get_amino_acid_sequence(uniprot_id, parser, alphafold_folder_path="data/cura
                 sequence = ""
                 for residue in chain:
                     if Polypeptide.is_aa(residue):
-                        sequence += seq1(residue.get_resname()) + " "
+                        sequence += seq1(residue.get_resname()) + ""
                 combined_sequence.append(sequence)
 
         combined_sequence = concat_character.join(combined_sequence)
@@ -576,94 +576,40 @@ def get_amino_acid_sequence(uniprot_id, parser, alphafold_folder_path="data/cura
 
 def create_PROTEIN_sequences(alphafold_folder_path="data/curated_chembl/alpha_fold_data", target_output_path="data/curated_chembl"): # Update this to make it work
     if os.path.exists(os.path.join(target_output_path, "protein_sequences")):
-        print("Protein sequences already created. Skipping...")
-        return
-    
+        if len(os.listdir(os.path.join(target_output_path, "protein_sequences"))) > 10:
+            print("Protein sequences already created. Skipping...")
+            return
+    else:
+        os.makedirs(os.path.join(target_output_path, "protein_sequences"))
+
     af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
 
     parser = PDBParser()
     for af_uniprot in tqdm(af_uniprots, desc="Processing protein sequences"):
-        sequence = get_amino_acid_sequence(af_uniprot, parser, alphafold_folder_path, fixed_size=512)
-
+        sequence = get_amino_acid_sequence(af_uniprot, parser, alphafold_folder_path, fixed_size=512) # TODO test with different window size
+        encoded_sequence = np.array(sequence).astype('S').astype('O')
+        
         file_name = os.path.join(target_output_path, "protein_sequences", f"{af_uniprot}_sequence.h5")
         # Save the file in h5 format, the file is always a 512 character string
         with h5py.File(file_name, 'w') as h5file:
-            h5file.create_dataset('sequence', data=np.array(sequence, dtype=str))
+            h5file.create_dataset('sequence', data=encoded_sequence)
 
 
-def load_protein_sequence(uniprot_id, sequences_folder_path="data/curated_chembl/protein_sequences"):
-    """
-    Load a protein sequence from a given UniProt ID.
-
-    :param uniprot_id: UniProt ID of the protein.
-    :param sequences_folder_path: Path to the folder containing protein sequences.
-    :return: The protein sequence as a string.
-    """
-    sequence_file = os.path.join(sequences_folder_path, f"{uniprot_id}_sequence.h5")
-
-    if not os.path.exists(sequence_file):
-        print(f"No sequence file found for UniProt ID {uniprot_id}")
-        return None
-
-    with h5py.File(sequence_file, 'r') as h5file:
-        sequence = ''.join(chr(i) for i in h5file['sequence'][()])
-        return sequence
-
-
-import torch, re
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-
-tokenizer = AutoTokenizer.from_pretrained("Rostlab/prot_t5_xl_uniref50")
-model = AutoModelForSeq2SeqLM.from_pretrained("Rostlab/prot_t5_xl_uniref50")
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-def get_protein_embeddings(uniprot_ids):
-    uniprot_sequences = {}
-
-    for uniprot_id in uniprot_ids:
-        sequence = load_protein_sequence(uniprot_id)
-        if sequence:
-            # Replace all rare/ambiguous amino acids by X and introduce white-space between all amino acids
-            processed_sequence = " ".join(list(re.sub(r"[UZOB]", "X", sequence)))
-            uniprot_sequences[uniprot_id] = processed_sequence
-
-
-    # tokenize sequences and pad up to the longest sequence in the batch
-    ids = tokenizer.batch_encode_plus(uniprot_sequences.values(), add_special_tokens=True, padding="longest")
-    input_ids = torch.tensor(ids['input_ids']).to(device)
-    attention_mask = torch.tensor(ids['attention_mask']).to(device)
-
-    # generate embeddings
-    with torch.no_grad():
-        embedding_repr = model(input_ids=input_ids,attention_mask=attention_mask)
-
-    # extract embeddings for the first ([0,:]) sequence in the batch while removing padded & special tokens ([0,:7]) 
-    for i, uniprot_id in tqdm(enumerate(uniprot_sequences.keys()), total=len(uniprot_sequences), desc="Processing embeddings"):
-        emb = embedding_repr.last_hidden_state[i,:len(uniprot_sequences[uniprot_id].replace(" ", ""))]
-        emb_per_protein = emb.mean(dim=0)  # shape (1024)
-
-        with h5py.File(os.path.join("data/curated_chembl/af_protein_embeddings", f"{uniprot_id}_embeddings.h5"), 'w') as h5file:
-            h5file.create_dataset('embeddings', data=np.array(emb_per_protein, dtype=float))
-
-def read_protein_embedding(uniprot_id, directory="data/curated_chembl/af_protein_embeddings"):
-    file_path = os.path.join(directory, f"{uniprot_id}_embeddings.h5")
+def load_protein_sequence(uniprot_id, target_output_path="data/curated_chembl"):
+    file_name = os.path.join(target_output_path, "protein_sequences", f"{uniprot_id}_sequence.h5")
     
-    if not os.path.exists(file_path):
+    # Check if the file exists
+    if not os.path.exists(file_name):
         print(f"File not found for UniProt ID {uniprot_id}")
         return None
 
-    try:
-        with h5py.File(file_path, 'r') as h5file:
-            # Assuming the dataset is named 'embeddings'
-            if 'embeddings' in h5file:
-                embeddings = np.array(h5file['embeddings'])
-                return embeddings
-            else:
-                print(f"'embeddings' dataset not found in {file_path}")
-                return None
-    except Exception as e:
-        print(f"An error occurred while reading {file_path}: {e}")
-        return None
+    # Load and decode the sequence
+    with h5py.File(file_name, 'r') as h5file:
+        encoded_sequence = h5file['sequence'][()]
+        decoded_sequence = encoded_sequence.decode('utf-8')
+    
+    return decoded_sequence
+
 
 def main():
     # SMILES string stand for "simplified molecular-input line-entry system" and are string identifiers for molecule structures
@@ -696,6 +642,7 @@ def main():
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
     create_SMILES_metadata(target_output_path)
     create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
+    sys.exit(0)
     create_SMILES_graphs(target_output_path)
 
 if __name__ == "__main__":
