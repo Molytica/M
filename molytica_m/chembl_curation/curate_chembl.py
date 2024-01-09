@@ -642,7 +642,6 @@ def main():
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
     create_SMILES_metadata(target_output_path)
     create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
-    sys.exit(0)
     create_SMILES_graphs(target_output_path)
 
 if __name__ == "__main__":
