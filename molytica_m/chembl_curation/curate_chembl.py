@@ -26,6 +26,9 @@ from Bio.SeqUtils import seq1
 import os, gzip
 from molytica_m.data_tools import alpha_fold_tools
 from tqdm import tqdm
+import torch
+from torch_geometric.data import Data
+import multiprocessing
 
 # Curate chembl data for all species and store in a folder system
 
@@ -611,6 +614,129 @@ def load_protein_sequence(uniprot_id, target_output_path="data/curated_chembl"):
     return decoded_sequence
 
 
+def create_SMILES_path_mappings(target_output_path="data/curated_chembl"):
+    print("Creating SMILES path mappings...")
+    if os.path.exists(os.path.join(target_output_path, "molecule_id_mappings", "mol_id_to_path.json")):
+        print("SMILES path mappings already created. Skipping...")
+        return
+    elif not os.path.exists(os.path.join(target_output_path, "molecule_id_mappings")):
+        os.makedirs(os.path.join(target_output_path, "molecule_id_mappings"))
+    
+    mol_id_to_path = {}
+
+    for folder in tqdm(os.listdir(os.path.join(target_output_path, "molecule_graphs")), desc="Creating SMILES path mappings"):
+        for file_name in os.listdir(os.path.join(target_output_path, "molecule_graphs", folder)):
+            file_path = os.path.join(target_output_path, "molecule_graphs", folder, file_name)
+            
+            mol_id_to_path[file_name.split(".h5")[0]] = file_path
+
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "mol_id_to_path.json"), 'w') as f:
+        json.dump(mol_id_to_path, f)
+
+def load_molecule_graph(mol_id, conf_id=0, target_output_path="data/curated_chembl"):
+    mol_id_to_path = {}
+    with open(os.path.join(target_output_path, "molecule_id_mappings", "mol_id_to_path.json"), 'r') as f:
+        mol_id_to_path = json.load(f)
+
+    file_path = mol_id_to_path[mol_id + "_" + conf_id]
+    
+    # Check if the file exists
+    if not os.path.exists(file_path):
+        print(f"File not found for molecule ID {mol_id}")
+        return None
+
+    # Load the graph
+    features, csr = graph_tools_pytorch.load_features_csr_matrix_from_hdf5(file_path)
+    
+    return features, csr
+
+
+
+def create_pyg_data_from_numpy(features, csr):
+    """
+    Create a PyTorch Geometric Data object from NumPy array and SciPy CSR matrix.
+
+    Parameters:
+    features (numpy.ndarray): Node features.
+    csr (scipy.sparse.csr_matrix): CSR matrix representing the graph structure.
+
+    Returns:
+    torch_geometric.data.Data: PyTorch Geometric Data object.
+    """
+    # Convert the features NumPy array to a PyTorch tensor
+    features_tensor = torch.FloatTensor(features)
+
+    # Convert the CSR matrix to COO format
+    csr_coo = csr.tocoo()
+    
+    # First, convert to a single NumPy array, then convert to a PyTorch tensor
+    edge_index_np = np.array([csr_coo.row, csr_coo.col])
+    edge_index = torch.tensor(edge_index_np, dtype=torch.long)
+
+    # Create and return the PyTorch Geometric Data object
+    data = Data(x=features_tensor, edge_index=edge_index)
+    return data
+
+def save_mol_pyg_data_to_hdf5(pyg_data, file_path):
+    with h5py.File(file_path, 'w') as f:
+        # Save node features
+        f.create_dataset('x', data=pyg_data.x.numpy())
+
+        # Save edge index
+        edge_index = pyg_data.edge_index.numpy()
+        f.create_dataset('edge_index', data=edge_index)
+
+
+def load_mol_pyg_data_from_hdf5(file_path):
+    with h5py.File(file_path, 'r') as f:
+        # Load node features
+        x = torch.tensor(f['x'][...], dtype=torch.float)
+
+        # Load edge index
+        edge_index = torch.tensor(f['edge_index'][...], dtype=torch.long)
+
+        # Reconstruct PyTorch Geometric Data object
+        pyg_data = Data(x=x, edge_index=edge_index)
+
+    return pyg_data
+
+
+def process_folder(args):
+    # Function to process a single folder
+    target_output_path, folder = args
+    folder_path = os.path.join(target_output_path, "molecule_graphs", folder)
+    output_folder_path = os.path.join(target_output_path, "molecule_graphs_coo", folder)
+
+    if not os.path.exists(output_folder_path):
+        os.makedirs(output_folder_path)
+
+    for file_name in os.listdir(folder_path):
+        file_path = os.path.join(folder_path, file_name)
+        features, csr = graph_tools_pytorch.load_features_csr_matrix_from_hdf5(file_path)
+        data_pyg = create_pyg_data_from_numpy(features, csr)
+
+        save_mol_pyg_data_to_hdf5(data_pyg, os.path.join(output_folder_path, file_name))
+
+
+def convert_SMILES_to_coo(target_output_path="data/curated_chembl"):
+    if os.path.exists(os.path.join(target_output_path, "molecule_graphs_coo")):
+        print("SMILES graphs already converted to COO format. Skipping...")
+        return
+
+    os.makedirs(os.path.join(target_output_path, "molecule_graphs_coo"), exist_ok=True)
+
+    folders = os.listdir(os.path.join(target_output_path, "molecule_graphs"))
+
+    # Calculate number of cores to use (80% of available cores)
+    num_cores = max(1, int(os.cpu_count() * 0.8))
+
+    # Using multiprocessing to process each folder in separate processes
+    with multiprocessing.Pool(processes=num_cores) as pool:
+        args = [(target_output_path, folder) for folder in folders]
+        list(tqdm(pool.imap(process_folder, args), total=len(folders), desc="Converting SMILES graphs to COO format"))
+
+
+
 def main():
     # SMILES string stand for "simplified molecular-input line-entry system" and are string identifiers for molecule structures
     # uniport ids are unique identifiers for proteins
@@ -642,7 +768,12 @@ def main():
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
     create_SMILES_metadata(target_output_path)
     create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
-    create_SMILES_graphs(target_output_path)
+    if False: # Manually adjust this to create or not create the SMILES graphs
+        create_SMILES_graphs(target_output_path)
+    else:
+        print("Skipping SMILES graph creation..., Manually adjust this in the bottom of the code curate_chembl.py if you haven't already")
+    create_SMILES_path_mappings(target_output_path)
+    convert_SMILES_to_coo(target_output_path)
 
 if __name__ == "__main__":
     main()

@@ -199,6 +199,22 @@ def save_features_csr_matrix_to_hdf5(features, csr_matrix, file_path):
         f.create_dataset('indptr', data=csr_matrix.indptr)
         f.create_dataset('shape', data=csr_matrix.shape)
 
+def load_features_csr_matrix_from_hdf5(file_path):
+    with h5py.File(file_path, 'r') as f:
+        # Load features
+        features = f['features'][...]
+
+        # Load CSR matrix components
+        data = f['data'][...]
+        indices = f['indices'][...]
+        indptr = f['indptr'][...]
+        shape = f['shape'][...]
+
+        # Reconstruct the CSR matrix
+        csr = csr_matrix((data, indices, indptr), shape=shape)
+
+    return features, csr
+
 def get_graph_from_uniprot_id(uniprot_id):
     folder_path = "data/alpha_fold_data/"
     file_name = os.path.join(folder_path, f"AF-{uniprot_id}-F1-model_v4.pdb.gz")
