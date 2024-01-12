@@ -1,0 +1,189 @@
+{
+    "9NOCA1": [
+        "Nocardia brasiliensis"
+    ],
+    "ORYSJ": [
+        "Oryza sativa",
+        "Oryza sativa Japonica Group"
+    ],
+    "ENTFC": [
+        "Enterococcus faecium"
+    ],
+    "ARATH": [
+        "Arabidopsis thaliana"
+    ],
+    "RAT": [
+        "Rattus norvegicus"
+    ],
+    "PARBA": [
+        "Paracoccidioides brasiliensis Pb18"
+    ],
+    "CAMJE": [
+        "Campylobacter jejuni",
+        "Campylobacter jejuni subsp. jejuni"
+    ],
+    "CANAL": [
+        "Candida albicans SC5314",
+        "Candida albicans",
+        "Candida albicans 28A",
+        "Candida albicans 28I"
+
+    ],
+    "SCHPO": [
+        "Schizosaccharomyces pombe"
+    ],
+    "MAIZE": [
+        "Zea mays"
+    ],
+    "MYCUL": [
+        ""
+    ],
+    "TRYB2": [
+        "Trypanosoma brucei brucei",
+        "Trypanosoma brucei brucei strain 927/4 GUTat10.1"
+    ],
+    "WUCBA": [
+        "Wuchereria bancrofti"
+    ],
+    "SOYBN": [
+        "Glycine max",
+        "soya bean"
+    ],
+    "MYCTU": [
+        "Mycobacterium tuberculosis",
+        "Mycobacterium tuberculosis H37Rv",
+        "Mycobacterium tuberculosis H37Ra",
+        "Mycobacterium tuberculosis 210",
+        "Mycobacterium tuberculosis str. Erdman",
+        "Mycobacterium tuberculosis CDC1551",
+        "Mycobacterium tuberculosis UT205",
+        "Mycobacterium tuberculosis H37RvMA",
+        "Mycobacterium tuberculosis str. Erdman = ATCC 35801",
+        "Mycobacterium tuberculosis variant bovis",
+        "Mycobacterium tuberculosis variant bovis BCG"
+    ],
+    "9PEZI1": [
+        "Madurella mycetomatis"
+    ],
+    "SALTY": [
+        "Salmonella",
+        "Salmonella enterica subsp. enterica serovar Typhimurium",
+        "salmonella typhimurium 3",
+        "Salmonella enterica subsp. enterica serovar Typhi",
+        "Salmonella typhi",
+        "Salmonella enterica subsp. enterica serovar Typhi str. CT18",
+        "salmonella schottmuelleri",
+        "Salmonella enterica subsp. enterica serovar Enteritidis",
+        "salmonella typhosa",
+        "Salmonella enterica subsp. enterica serovar Abony",
+        "Salmonella enterica",
+        "salmonella flexneri",
+        "Salmonella enterica subsp. enterica serovar Gallinarum",
+        "Salmonella enterica subsp. enterica serovar Paratyphi A",
+        "salmonella species",
+        "salmonella typhimurium a",
+        "Salmonella typhimurium",
+        "Salmonella enterica subsp. enterica serovar Oranienburg",
+        "Salmonella enterica subsp. enterica serovar Give",
+        "Salmonella enterica subsp. enterica serovar Setubal",
+        "Salmonella enterica subsp. enterica",
+        "Salmonella sp.",
+        "Salmonella enterica subsp. enterica serovar Typhimurium str. SL1344",
+        "Salmonella enterica subsp. enterica serovar Newport",
+        "",
+
+    ],
+    "STAA8": [
+        ""
+    ],
+    "TRYCC": [
+        ""
+    ],
+    "NEIG1": [
+        ""
+    ],
+    "METJA": [
+        ""
+    ],
+    "LEIIN": [
+        ""
+    ],
+    "AJECG": [
+        ""
+    ],
+    "SHIDS": [
+        ""
+    ],
+    "MOUSE": [
+        ""
+    ],
+    "ONCVO": [
+        ""
+    ],
+    "SCHMA": [
+        ""
+    ],
+    "PLAF7": [
+        ""
+    ],
+    "SPOS1": [
+        ""
+    ],
+    "PSEAE": [
+        ""
+    ],
+    "HELPY": [
+        ""
+    ],
+    "HUMAN": [
+        ""
+    ],
+    "9EURO1": [
+        ""
+    ],
+    "DICDI": [
+        ""
+    ],
+    "DRAME": [
+        ""
+    ],
+    "MYCLE": [
+        ""
+    ],
+    "TRITR": [
+        ""
+    ],
+    "STRER": [
+        ""
+    ],
+    "YEAST": [
+        ""
+    ],
+    "CAEEL": [
+        ""
+    ],
+    "DROME": [
+        ""
+    ],
+    "BRUMA": [
+        ""
+    ],
+    "HAEIN": [
+        ""
+    ],
+    "ECOLI": [
+        ""
+    ],
+    "KLEPH": [
+        ""
+    ],
+    "9EURO2": [
+        ""
+    ],
+    "DANRE": [
+        ""
+    ],
+    "STRR6": [
+        ""
+    ]
+}

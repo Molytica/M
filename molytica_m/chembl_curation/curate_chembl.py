@@ -29,6 +29,7 @@ from tqdm import tqdm
 import torch
 from torch_geometric.data import Data
 import multiprocessing
+from multiprocessing import Pool, cpu_count
 
 # Curate chembl data for all species and store in a folder system
 
@@ -133,9 +134,14 @@ def create_PROTEIN_graphs(input_folder_path="data/curated_chembl/alpha_fold_data
 
     arg_tuples = []
     af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
-    for file_name in os.listdir(input_folder_path):
-        if "pdb.gz" in file_name:
-            arg_tuples.append((input_folder_path, output_folder_path, file_name))
+    for folder_name in os.listdir(input_folder_path):
+        if not os.path.exists(os.path.join(output_folder_path, folder_name)):
+            os.makedirs(os.path.join(output_folder_path, folder_name))
+        for file_name in os.listdir(os.path.join(input_folder_path, folder_name)):
+            if "pdb.gz" in file_name:
+                input_path = os.path.join(input_folder_path, folder_name)
+                output_path = os.path.join(output_folder_path, folder_name)
+                arg_tuples.append((input_path, output_path, file_name))
 
     with ProcessPoolExecutor() as executor:
         _results = list(tqdm(executor.map(extract_af_protein_graph_file, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
@@ -287,6 +293,7 @@ def create_SMILES_metadata(target_output_path):
         descriptors = calculate_descriptors(smiles)
         print(descriptors)
 
+
 def filter_tid(tid):
     if id_mapping_tools.tid_to_af_uniprot(tid):
         return True
@@ -390,15 +397,82 @@ def download_and_extract(url, target_dir):
         print(f"File {file_name} already exists...")
 
     print(f"Extracting {file_name}...")
-    if len(os.listdir(target_dir)) > 1:
+    if len(os.listdir(target_dir)) > 1000:
         print("Folder not empty. Skipping extraction...")
     else:
         print("Folder empty. Extracting...")
         extract_tar_file(file_path, target_dir)
 
+"""
 def download_alphafold_data(target_output_path="data/curated_chembl/alpha_fold_data"):
     url = "https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000005640_9606_HUMAN_v4.tar"
     download_and_extract(url, target_output_path)
+"""
+
+def download_and_extract_single(args):
+    url, target_output_path = args
+    # Implement the logic for downloading and extracting a single URL
+    target_output_path_url = os.path.join(target_output_path, url.split('/')[-1].split('_')[2])
+    download_and_extract(url, target_output_path_url)  # Replace with your actual download and extraction logic
+
+
+def download_alphafold_data(target_output_path="data/curated_chembl/alpha_fold_data"):
+    urls = ['https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000001450_36329_PLAF7_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000001014_99287_SALTY_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000024404_6282_ONCVO_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000002296_353153_TRYCC_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000006672_6279_BRUMA_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000002311_559292_YEAST_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000007841_1125630_KLEPH_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000008816_93061_STAA8_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000008153_5671_LEIIN_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000589_10090_MOUSE_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000803_7227_DROME_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000059680_39947_ORYSJ_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000078237_100816_9PEZI1_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000002438_208964_PSEAE_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000559_237561_CANAL_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000094526_86049_9EURO1_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000325664_1352_ENTFC_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000020681_1299332_MYCUL_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000806_272631_MYCLE_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000005640_9606_HUMAN_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000002195_44689_DICDI_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000006548_3702_ARATH_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000030665_36087_TRITR_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000001940_6239_CAEEL_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000586_171101_STRR6_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000002716_300267_SHIDS_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000001584_83332_MYCTU_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000274756_318479_DRAME_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000805_243232_METJA_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000625_83333_ECOLI_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000535_242231_NEIG1_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000006304_1133849_9NOCA1_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000001631_447093_AJECG_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000002494_10116_RAT_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000429_85962_HELPY_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000002485_284812_SCHPO_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000579_71421_HAEIN_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000008524_185431_TRYB2_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000053029_1442368_9EURO2_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000008854_6183_SCHMA_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000270924_6293_WUCBA_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000799_192222_CAMJE_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000000437_7955_DANRE_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000035681_6248_STRER_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000007305_4577_MAIZE_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000008827_3847_SOYBN_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000018087_1391915_SPOS1_v4.tar',
+        'https://ftp.ebi.ac.uk/pub/databases/alphafold/latest/UP000002059_502779_PARBA_v4.tar']
+
+    # Calculate number of processes (80% of available cores)
+    num_processes = max(1, int(os.cpu_count() * 0.8))
+
+    # Create a multiprocessing pool
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        # Map the download function to the URLs
+        list(tqdm(pool.imap(download_and_extract_single, [(url, target_output_path) for url in urls]), total=len(urls)))
 
 
 def get_ordered_unique_col_values(columns, af_uniprots=alpha_fold_tools.get_alphafold_uniprot_ids(), id_mappings=pd.read_table("molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv")):
@@ -428,44 +502,49 @@ def binary_encode(full_values_list, values):
             binary_encoded[value_to_index[value]] = 1
     return binary_encoded
 
-def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/", idmapping_file="molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv"): # AF-UNIPROT-HOMO-SAPEINS protein metadata as binary vectors
+def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/", protein_data_dir="molytica_m/data_tools/protein_data"): # AF-UNIPROT-HOMO-SAPEINS protein metadata as binary vectors
     print("Creating protein")
-    id_mappings = pd.read_table(idmapping_file)
-    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+    af_uniprots = alpha_fold_tools.get_all_alphafold_uniprot_ids()
 
-    if len(save_path) > 0:
-        print("Protein Metadata already created. Skipping.")
-        return
+    if os.path.exists(save_path):
+        if len(os.listdir(save_path)) > 10:
+            print("Metadata for proteins has already been created. Skipping...")
+            return
 
-    columns = id_mappings.columns
+    for species in os.listdir(protein_data_dir):
+        if_mappings = None
+        for file in os.listdir(os.path.join(protein_data_dir, species)):
+            if "idmapping" in file:
+                id_mappings = pd.read_table(os.path.join(protein_data_dir, species, file))
+        
+        columns = id_mappings.columns
 
-    unique_value_lists = get_ordered_unique_col_values(columns)
+        unique_value_lists = get_ordered_unique_col_values(columns)
 
-    interesting_columns = ["Gene Ontology (GO)"]
-    uniprot_metadata = {}
+        interesting_columns = ["Gene Ontology (GO)"]
+        uniprot_metadata = {}
 
-    for uniprot in tqdm(af_uniprots, desc="Generating Metadata files"):
-        uniprot_data = []
-        row = id_mappings[id_mappings['From'] == str(uniprot)].iloc[0]
+        for uniprot in tqdm(list(af_uniprots[species]), desc="Generating Metadata files"):
+            uniprot_data = []
+            row = id_mappings[id_mappings['From'] == str(uniprot)].iloc[0]
 
-        for col in interesting_columns:
-            vals = list(set(str(row[col]).split("; ")))
-            uniprot_data += binary_encode(unique_value_lists[col], vals)
+            for col in interesting_columns:
+                vals = list(set(str(row[col]).split("; ")))
+                uniprot_data += binary_encode(unique_value_lists[col], vals)
 
-        uniprot_metadata[uniprot] = uniprot_data
+            uniprot_metadata[uniprot] = uniprot_data
 
-    if not os.path.exists(save_path):
-        os.makedirs(save_path)
+        if not os.path.exists(os.path.join(save_path, species)):
+            os.makedirs(os.path.join(save_path, species))
 
+        for uniprot in tqdm(list(uniprot_metadata.keys()), desc="Saving to hdf5"):
+            metadata = uniprot_metadata[uniprot]
 
-    for uniprot in tqdm(list(uniprot_metadata.keys()), desc="Saving to hdf5"):
-        metadata = uniprot_metadata[uniprot]
+            file_name = os.path.join(save_path, species, f"{uniprot}_metadata.h5")
 
-        file_name = os.path.join(save_path, f"{uniprot}_metadata.h5")
-
-        # Saving metadata to HDF5 file
-        with h5py.File(file_name, 'w') as h5file:
-            h5file.create_dataset('metadata', data=np.array(metadata, dtype=float))
+            # Saving metadata to HDF5 file
+            with h5py.File(file_name, 'w') as h5file:
+                h5file.create_dataset('metadata', data=np.array(metadata, dtype=np.float32)) # float32 for computational efficiency
 
 
 def calculate_descriptors(smiles_string):
@@ -577,7 +656,18 @@ def get_amino_acid_sequence(uniprot_id, parser, alphafold_folder_path="data/cura
     return combined_sequence
 
 
-def create_PROTEIN_sequences(alphafold_folder_path="data/curated_chembl/alpha_fold_data", target_output_path="data/curated_chembl"): # Update this to make it work
+def process_protein_sequence(args):
+    af_uniprot, species, alphafold_folder_path, target_output_path = args
+    parser = PDBParser()
+    sequence = get_amino_acid_sequence(af_uniprot, parser, os.path.join(alphafold_folder_path, species), fixed_size=512)  # Adjust window size as needed
+    encoded_sequence = np.array(sequence).astype('S').astype('O')
+
+    file_name = os.path.join(target_output_path, "protein_sequences", species, f"{af_uniprot}_sequence.h5")
+    with h5py.File(file_name, 'w') as h5file:
+        h5file.create_dataset('sequence', data=encoded_sequence)
+
+def create_PROTEIN_sequences(alphafold_folder_path="data/curated_chembl/alpha_fold_data", target_output_path="data/curated_chembl"):
+    print("Creating protein sequences...")
     if os.path.exists(os.path.join(target_output_path, "protein_sequences")):
         if len(os.listdir(os.path.join(target_output_path, "protein_sequences"))) > 10:
             print("Protein sequences already created. Skipping...")
@@ -585,17 +675,18 @@ def create_PROTEIN_sequences(alphafold_folder_path="data/curated_chembl/alpha_fo
     else:
         os.makedirs(os.path.join(target_output_path, "protein_sequences"))
 
-    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+    af_uniprots = alpha_fold_tools.get_all_alphafold_uniprot_ids()
 
-    parser = PDBParser()
-    for af_uniprot in tqdm(af_uniprots, desc="Processing protein sequences"):
-        sequence = get_amino_acid_sequence(af_uniprot, parser, alphafold_folder_path, fixed_size=512) # TODO test with different window size
-        encoded_sequence = np.array(sequence).astype('S').astype('O')
-        
-        file_name = os.path.join(target_output_path, "protein_sequences", f"{af_uniprot}_sequence.h5")
-        # Save the file in h5 format, the file is always a 512 character string
-        with h5py.File(file_name, 'w') as h5file:
-            h5file.create_dataset('sequence', data=encoded_sequence)
+    args_list = []
+    for species in os.listdir(alphafold_folder_path):
+        if not os.path.exists(os.path.join(target_output_path, "protein_sequences", species)):
+            os.makedirs(os.path.join(target_output_path, "protein_sequences", species))
+        for af_uniprot in af_uniprots[species]:
+            args_list.append((af_uniprot, species, alphafold_folder_path, target_output_path))
+
+    with Pool(processes=cpu_count()) as pool:
+        list(tqdm(pool.imap(process_protein_sequence, args_list), total=len(args_list), desc="Processing protein sequences"))
+
 
 
 def load_protein_sequence(uniprot_id, target_output_path="data/curated_chembl"):
@@ -736,6 +827,38 @@ def convert_SMILES_to_coo(target_output_path="data/curated_chembl"):
         list(tqdm(pool.imap(process_folder, args), total=len(folders), desc="Converting SMILES graphs to COO format"))
 
 
+def load_protein_graph(uniprot_id, fold_n):
+    file_name = os.path.join("data", "curated_chembl", "af_protein_1_dot_5_angstrom_graphs", f"{uniprot_id}_{fold_n}_graph.h5")
+    
+    # Check if the file exists
+    if not os.path.exists(file_name):
+        print(f"File not found for UniProt ID {uniprot_id}")
+        return None
+
+    # Load the graph
+    with h5py.File(file_name, 'r') as h5file:
+        edge_index = h5file['edge_index'][()]
+        edge_attr = h5file['edge_attr'][()]
+        atom_features = h5file['atom_features'][()]
+    
+    #convert to pytorch data
+    edge_index = torch.tensor(edge_index, dtype=torch.long)
+    edge_attr = torch.tensor(edge_attr, dtype=torch.float)
+    atom_features = torch.tensor(atom_features, dtype=torch.float)
+
+    data = Data(x=atom_features, edge_index=edge_index, edge_attr=edge_attr)
+
+    return data
+
+
+# Load Functions
+
+# load_protein_graph("Q9H3N8", 0)
+# load_molecule_graph("0", 0)
+# load_protein_sequence("Q9H3N8")
+# load_protein_metadata("Q9H3N8")
+
+
 
 def main():
     # SMILES string stand for "simplified molecular-input line-entry system" and are string identifiers for molecule structures
@@ -764,7 +887,7 @@ def main():
     download_alphafold_data(alphafold_folder_path)
     curate_raw_chembl(raw_chembl_db_path, curated_chembl_db_folder_path, new_db_name)
     create_PROTEIN_graphs(alphafold_folder_path, protein_graph_output_path)
-    create_PROTEIN_metadata(target_protein_metadata_output_path, protein_metadata_tsv_path)
+    create_PROTEIN_metadata(target_protein_metadata_output_path)
     create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
     create_SMILES_metadata(target_output_path)
     create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
