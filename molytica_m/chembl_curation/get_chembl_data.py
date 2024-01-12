@@ -168,18 +168,24 @@ def get_categorised_CV_split():
 
 if __name__ == "__main__": 
     # Load the data
-    categorised_folds = get_categorised_CV_split()
-    print(categorised_folds[0][0])
-    print(len(categorised_folds[0]) * 5)
+    #categorised_folds = get_categorised_CV_split()
+    #print(categorised_folds[0][0])
+    #print(len(categorised_folds[0]) * 5)
 
     data = load_protein_graph("P05067")
     print(data)
 
     seq = load_protein_sequence("P05067")
     print(seq)
+    
+    meta = load_protein_metadata("P05067")
+    print(meta)
 
-    bioactivities = get_bioactivities()
-    print(bioactivities[0])
+    aspirin_smiles = "CC(=O)OC1=CC=CC=C1C(O)=O"
+    desc = load_molecule_descriptors()
 
-    folds = get_CV_split()
-    print(len(folds))
+    #bioactivities = get_bioactivities()
+    #print(bioactivities[0])
+
+    #folds = get_CV_split()
+    #print(len(folds))
