@@ -15,6 +15,7 @@ def get_input_from_smiles_target_and_modulation(smiles, target_uniprot, modulati
 
     return smiles, molecule_descriptors, molecule_graph, protein_metadata, protein_graph, smiles_embedding, protein_embedding
 
+
 def train_on_data_early_stop(train_data, val_data):
     pass
 

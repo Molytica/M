@@ -6,6 +6,7 @@ import random
 import json
 from torch_geometric.data import Data
 from molytica_m.data_tools.graph_tools import graph_tools_pytorch
+from concurrent.futures import ProcessPoolExecutor
 
 def load_protein_graph(uniprot_id, fold_n=1):
     speciess = os.listdir(os.path.join("data", "curated_chembl", "af_protein_1_dot_5_angstrom_graphs"))
@@ -165,6 +166,62 @@ def get_categorised_CV_split():
         folds.append(modified_rows[i*fold_size:(i+1)*fold_size])
 
     return folds
+
+
+db_path = os.path.join("data", "curated_chembl", "SMILES_metadata.db")
+conn = sqlite3.connect(db_path)
+c = conn.cursor()
+
+def load_molecule_descriptors(smiles):
+    # Define the SQL command to select the row
+    sql_command = "SELECT * FROM mol_metadata WHERE mol_canonical_smiles = ?"
+    c.execute(sql_command, (smiles,))
+
+    # Fetch the result
+    result = c.fetchone()
+
+    if result is None:
+        return None
+
+    # Assuming the first two columns are mol_molytica_id and mol_canonical_smiles
+    descriptors = result[2:]
+
+    return descriptors
+
+def add_molecule_descriptors(smiles, descriptors):
+    num_cores = os.cpu_count()
+    num_workers = int(num_cores * 0.9)
+
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        batch_descriptors = executor.map(calculate_descriptors, batch_id_to_smiles.values())
+
+    smiles = list(batch_id_to_smiles.values())
+    mol_ids = list(batch_id_to_smiles.keys())
+    batch_descriptors = list(batch_descriptors)
+
+    add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c)
+
+
+def load_protein_metadata(uniprot_id):
+    speciess = os.listdir(os.path.join("data", "curated_chembl", "af_metadata"))
+
+    potential_file_names = []
+    for species in speciess:
+        potential_file_names.append(
+            os.path.join("data", "curated_chembl", "af_metadata", species, f"{uniprot_id}_metadata.h5")
+            )
+    
+    for file_name in potential_file_names:
+        if not os.path.exists(file_name):
+            continue
+
+        with h5py.File(file_name, 'r') as h5file:  # Open the file in read-only mode
+            metadata = h5file['metadata'][:]  # Read the entire dataset
+        return metadata
+    
+    print(f"File not found for UniProt ID {uniprot_id}")
+    return None
+
 
 if __name__ == "__main__": 
     # Load the data

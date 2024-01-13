@@ -285,15 +285,6 @@ def calculate_descriptors(smiles_string):
 
     return descriptors
 
-def create_SMILES_metadata(target_output_path):
-    with open(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json"), 'r') as f:
-        id_to_smiles = json.load(f)
-    
-    for smiles in tqdm(id_to_smiles.values(), desc="Creating SMILES metadata"):
-        descriptors = calculate_descriptors(smiles)
-        print(descriptors)
-
-
 def filter_tid(tid):
     if id_mapping_tools.tid_to_af_uniprot(tid):
         return True
@@ -562,7 +553,7 @@ def calculate_descriptors(smiles_string):
     return descriptors
 
 def create_db_and_table(path="data/curated_chembl/SMILES_metadata.db"):
-    smiles_string = "CC(=O)OC1=CC=CC=C1C(=O)O"
+    smiles_string = "CC(=O)OC1=CC=CC=C1C(=O)O"  # Just example to create the column names for the descriptors
     descriptors = calculate_descriptors(smiles_string)
     
     # Connect to the SQLite database and create a cursor object
@@ -584,11 +575,11 @@ def create_db_and_table(path="data/curated_chembl/SMILES_metadata.db"):
 
 def add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c):
     # Prepare the batch of data
-    data = [(mol_id, smile, *descriptor) for mol_id, smile, descriptor in zip(mol_ids, smiles, batch_descriptors)]
+    data = [(mol_id, smile, *descriptor) for mol_id, smile, descriptor in zip(mol_ids, smiles, [descriptors.values() for descriptors in batch_descriptors])]
 
     # Define the SQL command for batch insertion
-    placeholders = ', '.join(['?'] * (2 + len(batch_descriptors[0])))  # 2 for mol_id and smile, rest for descriptors
-    sql_command = f"INSERT INTO mol_metadata VALUES ({placeholders})"
+    placeholders = ', '.join(['?'] * (len(data[0])))  # 2 for mol_id and smile, rest for descriptors
+    sql_command = f"INSERT OR REPLACE INTO mol_metadata VALUES ({placeholders})"
 
     # Execute the SQL command
     c.executemany(sql_command, data)
@@ -608,24 +599,23 @@ def create_SMILES_metadata(target_output_path="data/curated_chembl/"):
     batch_size = 10000
     num_batches = len(id_to_smiles) // batch_size + 1
 
-    with sqlite3.connect(db_path) as conn:
-        c = conn.cursor()
+    for batch_num in tqdm(range(num_batches), desc="Creating SMILES metadata"):
+        batch_start = batch_num * batch_size
+        batch_end = min((batch_num + 1) * batch_size, len(id_to_smiles))
+        batch_id_to_smiles = {k: v for k, v in id_to_smiles.items() if batch_start <= int(k) < batch_end}
 
-        for batch_num in tqdm(range(num_batches), desc="Creating SMILES metadata"):
-            batch_start = batch_num * batch_size
-            batch_end = min((batch_num + 1) * batch_size, len(id_to_smiles))
-            batch_id_to_smiles = {k: v for k, v in id_to_smiles.items() if batch_start <= int(k) < batch_end}
+        num_cores = os.cpu_count()
+        num_workers = int(num_cores * 0.9)
 
-            num_cores = os.cpu_count()
-            num_workers = int(num_cores * 0.9)
+        with ProcessPoolExecutor(max_workers=num_workers) as executor:
+            batch_descriptors = executor.map(calculate_descriptors, batch_id_to_smiles.values())
 
-            with ProcessPoolExecutor(max_workers=num_workers) as executor:
-                batch_descriptors = executor.map(calculate_descriptors, batch_id_to_smiles.values())
+        smiles = list(batch_id_to_smiles.values())
+        mol_ids = list(batch_id_to_smiles.keys())
+        batch_descriptors = list(batch_descriptors)
 
-            smiles = list(batch_id_to_smiles.values())
-            mol_ids = list(batch_id_to_smiles.keys())
-            batch_descriptors = list(batch_descriptors)
-
+        with sqlite3.connect(db_path) as conn:
+            c = conn.cursor()
             add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c)
 
 
