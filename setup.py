@@ -23,6 +23,8 @@ setup(
         'scanpy',
         'requests',
         'beautifulsoup4',
-        'genai'
+        'genai',
+        'sentencepiece'
+
     ],
 )

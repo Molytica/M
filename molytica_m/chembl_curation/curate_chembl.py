@@ -29,6 +29,8 @@ import torch
 from torch_geometric.data import Data
 import multiprocessing
 from multiprocessing import Pool, cpu_count
+from molytica_m.arch_2 import chemBERT, protT5
+from molytica_m.chembl_curation import get_chembl_data
 
 # Curate chembl data for all species and store in a folder system
 
@@ -588,6 +590,57 @@ def create_db_and_table(path="data/curated_chembl/SMILES_metadata.db"):
         c.execute(sql_command)
     # The connection is automatically closed here
 
+def pre_cache_molecule_embeddings():
+    with open("data/curated_chembl/molecule_id_mappings/id_to_smiles.json", 'r') as f:
+        id_to_smiles = json.load(f)
+
+    with sqlite3.connect("data/curated_chembl/smiles_embeddings.db") as conn:
+        c = conn.cursor()
+
+        # Create a table with columns: mol_id (integer), smiles (text), and path (text)
+        c.execute('''CREATE TABLE IF NOT EXISTS molecule_embeddings
+                     (mol_id INTEGER, smiles TEXT, embedding BLOB)''')
+
+        # Changes are automatically committed and connection is closed after the 'with' block
+
+    tok, mod = chemBERT.get_chemBERT_tok_mod()
+    for mol_id, smiles in tqdm(zip(id_to_smiles.keys(), id_to_smiles.values()), desc="Generating all molecule embeddings"):
+        
+        embed = chemBERT.get_molecule_mean_logits(smiles, tok, mod)[0]  # Selecting the first embedding
+
+        with sqlite3.connect("data/curated_chembl/smiles_embeddings.db") as conn:
+            c = conn.cursor()
+
+            # Insert the mol_id, smiles, and embedding into the database
+
+            # Define the SQL command for batch insertion
+            sql_command = f"INSERT OR REPLACE INTO molecule_embeddings VALUES (?, ?, ?)"
+
+            # Execute the SQL command
+            c.execute(sql_command, (mol_id, smiles, embed))
+
+
+def pre_cache_protein_embeddings():
+    tokenizer, model, device = protT5.get_protT5_stuff()
+
+    for species in tqdm(os.listdir("data/curated_chembl/protein_sequences"), desc="Generating all protein embeddings"):
+        species_folder = os.path.join("data/curated_chembl/protein_embeddings", species)
+        if not os.path.exists(species_folder):
+            os.makedirs(species_folder)
+
+        for file in tqdm(os.listdir(os.path.join("data/curated_chembl/protein_sequences", species)), desc="Generating spec. protein embeddings"):
+            uniprot_id = file.split("_")[0]
+            output_file_name = os.path.join(species_folder, file.replace("sequence", "embedding"))
+            seq = get_chembl_data.load_protein_sequence(uniprot_id)
+            embed = protT5.calculate_mean_embeddings([seq], tokenizer, model, device)[0]  # Selecting the first embedding
+
+            # Move the tensor to CPU memory and convert it to a numpy array
+            embed_numpy = embed.cpu().numpy() if embed.is_cuda else embed.numpy()
+
+            # Save the embedding as a numpy array in h5 format
+            with h5py.File(output_file_name, 'w') as h5f:
+                h5f.create_dataset('embedding', data=embed_numpy)
+
 def add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c):
     # Prepare the batch of data
     data = [(mol_id, smile, *descriptor) for mol_id, smile, descriptor in zip(mol_ids, smiles, [descriptors.values() for descriptors in batch_descriptors])]
@@ -631,7 +684,7 @@ def populate_mol_index_db(c):
 
     # Prepare the batch of data
     data = [(mol_id, smile, ",".join(paths[mol_id])) for mol_id, smile in zip(mol_ids, smiles) if mol_id in paths]
-    
+
     # Define the SQL command for batch insertion
     placeholders = ', '.join(['?'] * (3))  # 2 for mol_id and smile, rest for path
     sql_command = f"INSERT OR REPLACE INTO molecule_index VALUES ({placeholders})"
@@ -742,23 +795,6 @@ def create_PROTEIN_sequences(alphafold_folder_path="data/curated_chembl/alpha_fo
 
     with Pool(processes=cpu_count()) as pool:
         list(tqdm(pool.imap(process_protein_sequence, args_list), total=len(args_list), desc="Processing protein sequences"))
-
-
-
-def load_protein_sequence(uniprot_id, target_output_path="data/curated_chembl"):
-    file_name = os.path.join(target_output_path, "protein_sequences", f"{uniprot_id}_sequence.h5")
-    
-    # Check if the file exists
-    if not os.path.exists(file_name):
-        print(f"File not found for UniProt ID {uniprot_id}")
-        return None
-
-    # Load and decode the sequence
-    with h5py.File(file_name, 'r') as h5file:
-        encoded_sequence = h5file['sequence'][()]
-        decoded_sequence = encoded_sequence.decode('utf-8')
-    
-    return decoded_sequence
 
 
 def create_SMILES_path_mappings(target_output_path="data/curated_chembl"):
@@ -954,6 +990,7 @@ def main():
     create_SMILES_path_mappings(target_output_path)
     convert_SMILES_to_coo(target_output_path)
     create_proper_mol_index()
+    pre_cache_protein_embeddings()
 
 if __name__ == "__main__":
     main()

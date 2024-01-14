@@ -334,6 +334,20 @@ def add_molecule_descriptors(smiles): # Takes in a list of smiles
     
     return batch_descriptors.values()
 
+def load_protein_embedding(uniprot_id):
+    for species in os.listdir(os.path.join("data", "curated_chembl", "protein_embeddings")):
+        file_name = os.path.join("data", "curated_chembl", "protein_embeddings", species, f"{uniprot_id}_embedding.h5")
+        if not os.path.exists(file_name):
+            continue
+
+        with h5py.File(file_name, 'r') as h5file:
+            embedding = h5file['embedding'][()]
+        
+        return embedding
+
+    print(f"File not found for UniProt ID {uniprot_id}")
+    return None
+
 
 def load_protein_metadata(uniprot_id):
     speciess = os.listdir(os.path.join("data", "curated_chembl", "af_metadata"))
@@ -362,35 +376,37 @@ if __name__ == "__main__":
     #print(categorised_folds[0][0])
     #print(len(categorised_folds[0]) * 5)
 
-    data = load_protein_graph("P05067")
-    print(data)
+    #data = load_protein_graph("P05067")
+    #print(data)
 
-    seq = load_protein_sequence("P05067")
-    print(seq)
+    #seq = load_protein_sequence("P05067")
+    #print(seq)
     
-    meta = load_protein_metadata("P05067")
-    print(meta)
-    print(len(meta))
+    #meta = load_protein_metadata("P05067")
+    #print(meta)
+    #print(len(meta))
 
-    aspirin_smiles = "CC(=O)OC1=CC=CC=C1C(O)=O"
-    desc = load_molecule_descriptors(aspirin_smiles)
-    print(desc)
+    #aspirin_smiles = "CC(=O)OC1=CC=CC=C1C(O)=O"
+    #desc = load_molecule_descriptors(aspirin_smiles)
+    #print(desc)
 
-    with open(os.path.join("data", "curated_chembl", "molecule_id_mappings", "smiles_to_id.json"), 'r') as f:
-        smiles_to_id = json.load(f)
+    #with open(os.path.join("data", "curated_chembl", "molecule_id_mappings", "smiles_to_id.json"), 'r') as f:
+    #    smiles_to_id = json.load(f)
 
-    smiles = list(smiles_to_id.keys())
+    #smiles = list(smiles_to_id.keys())
 
-    get_data_by_mol_id_or_smiles("COc1ccc(CN[C@@H](C(=O)N[C@H](C(=O)NCc2ccc(OC)cc2O)C(C)C)[C@H](O)[C@H](Cc2ccccc2)NC(=O)[C@@H](NC(=O)Cc2cccc3ccccc23)C(C)(C)C)cc1")
+    #get_data_by_mol_id_or_smiles("COc1ccc(CN[C@@H](C(=O)N[C@H](C(=O)NCc2ccc(OC)cc2O)C(C)C)[C@H](O)[C@H](Cc2ccccc2)NC(=O)[C@@H](NC(=O)Cc2cccc3ccccc23)C(C)(C)C)cc1")
 
-    smiles, path = get_data_by_mol_id_or_smiles(2)
-    mol_graph_0 = load_molecule_graph(smiles)
-    print(mol_graph_0)
-    mol_graph = load_molecule_graph(2)
-    print(mol_graph)
+    #smiles, path = get_data_by_mol_id_or_smiles(2)
+    #mol_graph_0 = load_molecule_graph(smiles)
+    #print(mol_graph_0)
+    #mol_graph = load_molecule_graph(2)
+    #print(mol_graph)
 
-    bioactivities = get_bioactivities()
-    print(bioactivities[0])
+    #bioactivities = get_bioactivities()
+    #print(bioactivities[0])
 
     #folds = get_CV_split()
     #print(len(folds))
+
+    print(load_protein_embedding("K0EFJ8"))
