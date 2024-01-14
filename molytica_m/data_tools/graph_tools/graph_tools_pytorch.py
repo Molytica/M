@@ -32,7 +32,6 @@ atom_type_to_float = {
     'Se': 13.0,# Selenium
     'Li': 14.0,# Lithium
     'Zn': 15.0,# Zinc
-    'As': 16.0,# Arsenic
     'Se': 17.0,# Selenium
 }
 
@@ -200,34 +199,22 @@ def save_features_csr_matrix_to_hdf5(features, csr_matrix, file_path):
         f.create_dataset('indptr', data=csr_matrix.indptr)
         f.create_dataset('shape', data=csr_matrix.shape)
 
-def get_graph_from_uniprot_id(uniprot_id):
-    folder_path = "data/alpha_fold_data/"
-    file_name = os.path.join(folder_path, f"AF-{uniprot_id}-F1-model_v4.pdb.gz")
-    
-    with gzip.open(file_name, 'rt') as file:
-        parser = PDBParser(QUIET=True)
-        atom_structure = parser.get_structure("", file)
+def load_features_csr_matrix_from_hdf5(file_path):
+    with h5py.File(file_path, 'r') as f:
+        # Load features
+        features = f['features'][...]
 
-    protein_atom_cloud_array = []
-    for model in atom_structure:
-        for chain in model:
-            for residue in chain:
-                for atom in residue:
-                    atom_type_numeric = get_atom_type_numeric(atom.element.strip())
-                    atom_data = [atom_type_numeric, *atom.get_coord()]
-                    protein_atom_cloud_array.append(atom_data)
-    
-    protein_atom_cloud_array = np.array(protein_atom_cloud_array)
-    atom_point_cloud_atom_types = protein_atom_cloud_array[:, 0]  # Changed from :1 to 0 for correct indexing
-    n_atom_types = 9
+        # Load CSR matrix components
+        data = f['data'][...]
+        indices = f['indices'][...]
+        indptr = f['indptr'][...]
+        shape = f['shape'][...]
 
-    # One-hot encode the atom types
-    features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int) - 1]  # Make sure the types are integers
+        # Reconstruct the CSR matrix
+        csr = csr_matrix((data, indices, indptr), shape=shape)
 
-    # Now features is a two-dimensional numpy array with one-hot encoding
-    csr_graph = csr_graph_from_point_cloud(protein_atom_cloud_array)
+    return features, csr
 
-    return Graph(x=features, a=csr_graph)
 
 def save_graph(G, file_path):
     if not os.path.exists(os.path.dirname(file_path)):

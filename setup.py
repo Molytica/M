@@ -10,7 +10,7 @@ setup(
     author_email='oliver.midbrink@stud.ki.se',
     description='Molytica M Software',
     packages=find_packages(),
-    install_requires=[
+    install_requires=[ # a
         'numpy',
         'pandas',
         'requests',
@@ -21,5 +21,10 @@ setup(
         'torch_geometric',
         'openai',
         'scanpy',
+        'requests',
+        'beautifulsoup4',
+        'genai',
+        'sentencepiece'
+
     ],
 )
