@@ -159,6 +159,8 @@ def add_molecule_to_library(smiles, db_path="data/curated_chembl/molecule_index.
             if count > 0:
                 raise ValueError(f"mol_id {new_mol_id} already exists in the database")
 
+            
+
             # Add the molecule to the database
             curate_chembl.add_mol_desc_to_db([smiles], [new_mol_id], [descriptors], c)
     except sqlite3.Error as e:
@@ -166,44 +168,6 @@ def add_molecule_to_library(smiles, db_path="data/curated_chembl/molecule_index.
         return None
 
     return new_mol_id
-
-
-def get_bioactivities():
-    # Connect to the SQLite database
-    conn = sqlite3.connect(os.path.join("data", "curated_chembl", "smiles_alphafold_v4_human_uniprot_chembl_bioactivities.db"))
-    cursor = conn.cursor()
-
-    # Execute the SQL query to fetch all rows from the bioactivities table
-    cursor.execute("SELECT * FROM bioactivities")
-    rows = cursor.fetchall()
-
-    # Close the database connection
-    conn.close()
-
-    # Return the rows as an array
-    return rows
-
-    
-def get_CV_split():
-    rows = get_bioactivities()
-    random.seed(42)
-    random.shuffle(rows)
-
-    # Split into 5 folds
-    fold_size = len(rows) // 5
-    folds = []
-    for i in range(5):
-        folds.append(rows[i*fold_size:(i+1)*fold_size])
-
-    return folds
-
-
-def categorize_inhibitor(ic50_nm):
-    # TODO: Implement the categorize_inhibitor function
-
-
-def get_categorised_CV_split():
-    # TODO: Implement the get_categorised_CV_split function
 
 def get_bioactivities():
     # Connect to the SQLite database
