@@ -159,8 +159,6 @@ def add_molecule_to_library(smiles, db_path="data/curated_chembl/molecule_index.
             if count > 0:
                 raise ValueError(f"mol_id {new_mol_id} already exists in the database")
 
-            
-
             # Add the molecule to the database
             curate_chembl.add_mol_desc_to_db([smiles], [new_mol_id], [descriptors], c)
     except sqlite3.Error as e:
@@ -364,18 +362,19 @@ if __name__ == "__main__":
     #print(categorised_folds[0][0])
     #print(len(categorised_folds[0]) * 5)
 
-    #data = load_protein_graph("P05067")
-    #print(data)
+    data = load_protein_graph("P05067")
+    print(data)
 
-    #seq = load_protein_sequence("P05067")
-    #print(seq)
+    seq = load_protein_sequence("P05067")
+    print(seq)
     
-    #meta = load_protein_metadata("P05067")
-    #print(meta)
+    meta = load_protein_metadata("P05067")
+    print(meta)
+    print(len(meta))
 
     aspirin_smiles = "CC(=O)OC1=CC=CC=C1C(O)=O"
-    #desc = load_molecule_descriptors(aspirin_smiles)
-    #print(desc)
+    desc = load_molecule_descriptors(aspirin_smiles)
+    print(desc)
 
     with open(os.path.join("data", "curated_chembl", "molecule_id_mappings", "smiles_to_id.json"), 'r') as f:
         smiles_to_id = json.load(f)
@@ -390,8 +389,8 @@ if __name__ == "__main__":
     mol_graph = load_molecule_graph(2)
     print(mol_graph)
 
-    #bioactivities = get_bioactivities()
-    #print(bioactivities[0])
+    bioactivities = get_bioactivities()
+    print(bioactivities[0])
 
     #folds = get_CV_split()
     #print(len(folds))
