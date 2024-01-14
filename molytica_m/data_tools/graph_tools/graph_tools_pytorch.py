@@ -215,34 +215,6 @@ def load_features_csr_matrix_from_hdf5(file_path):
 
     return features, csr
 
-def get_graph_from_uniprot_id(uniprot_id):
-    folder_path = "data/alpha_fold_data/"
-    file_name = os.path.join(folder_path, f"AF-{uniprot_id}-F1-model_v4.pdb.gz")
-    
-    with gzip.open(file_name, 'rt') as file:
-        parser = PDBParser(QUIET=True)
-        atom_structure = parser.get_structure("", file)
-
-    protein_atom_cloud_array = []
-    for model in atom_structure:
-        for chain in model:
-            for residue in chain:
-                for atom in residue:
-                    atom_type_numeric = get_atom_type_numeric(atom.element.strip())
-                    atom_data = [atom_type_numeric, *atom.get_coord()]
-                    protein_atom_cloud_array.append(atom_data)
-    
-    protein_atom_cloud_array = np.array(protein_atom_cloud_array)
-    atom_point_cloud_atom_types = protein_atom_cloud_array[:, 0]  # Changed from :1 to 0 for correct indexing
-    n_atom_types = 9
-
-    # One-hot encode the atom types
-    features = np.eye(n_atom_types)[atom_point_cloud_atom_types.astype(int) - 1]  # Make sure the types are integers
-
-    # Now features is a two-dimensional numpy array with one-hot encoding
-    csr_graph = csr_graph_from_point_cloud(protein_atom_cloud_array)
-
-    return Graph(x=features, a=csr_graph)
 
 def save_graph(G, file_path):
     if not os.path.exists(os.path.dirname(file_path)):

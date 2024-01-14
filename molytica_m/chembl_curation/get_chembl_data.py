@@ -98,25 +98,112 @@ def add_molecule_data(db_path, mol_id, smiles, path_list):
     except Exception as e:
         raise Exception(f"An error occurred: {e}")
 
-def load_molecule_graph_form_id(mol_id, conf_id=0, target_output_path="data/curated_chembl", mol_id_to_path_preload=None):
-    mol_id_to_path = {}
-    if mol_id_to_path_preload is None:
-        with open(os.path.join(target_output_path, "molecule_id_mappings", "mol_id_to_path.json"), 'r') as f:
-            mol_id_to_path = json.load(f)
-    else:
-        mol_id_to_path = mol_id_to_path_preload
+def load_molecule_graph(search_key, conf_id=0, db_path="data/curated_chembl/molecule_index.db"):
+    # Determine the type of search_key (mol_id or smiles)
+    search_column = 'mol_id' if isinstance(search_key, int) else 'smiles'
 
-    file_path = mol_id_to_path[mol_id + "_" + str(conf_id)]
-    
-    # Check if the file exists
-    if not os.path.exists(file_path):
-        print(f"File not found for molecule ID {mol_id}")
+    # Connect to the database and fetch the path list
+    try:
+        with sqlite3.connect(db_path) as conn:
+            c = conn.cursor()
+            query = f"SELECT path_comma_sep FROM molecule_index WHERE {search_column} = ?"
+            c.execute(query, (search_key,))
+            row = c.fetchone()
+
+            if not row:
+                print(f"No data found for {search_column}: {search_key}")
+                return None
+
+            path_list = row[0].split(',') if row[0] else []
+            if conf_id >= len(path_list):
+                print(f"Invalid conf_id {conf_id} for {search_column}: {search_key}")
+                return None
+
+            file_path = path_list[conf_id]
+
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
         return None
 
-    # Load the graph
-    features, csr = graph_tools_pytorch.load_features_csr_matrix_from_hdf5(file_path)
+    # Check if the file exists
+    if not os.path.exists(file_path):
+        print(f"File not found: {file_path}")
+        return None
+
+    # Load the graph pytorch geometric data
+    pyg_data = curate_chembl.load_mol_pyg_data_from_hdf5(file_path)
+
+    return pyg_data
+
+def add_molecule_to_library(smiles, db_path="data/curated_chembl/molecule_index.db"):
+    # Validate input types
+    if not isinstance(smiles, str):
+        raise ValueError("smiles must be a string")
+
+    # Calculate the descriptors
+    descriptors = curate_chembl.calculate_descriptors(smiles)
+
+    # Get the maximum mol_id from the database
+    try:
+        with sqlite3.connect(db_path) as conn:
+            c = conn.cursor()
+            c.execute("SELECT MAX(mol_id) FROM molecule_index")
+            max_mol_id = c.fetchone()[0]
+            if max_mol_id is None:
+                max_mol_id = 0
+            new_mol_id = max_mol_id + 1
+
+            # Check if the new mol_id already exists in the database
+            c.execute("SELECT COUNT(*) FROM molecule_index WHERE mol_id = ?", (new_mol_id,))
+            count = c.fetchone()[0]
+            if count > 0:
+                raise ValueError(f"mol_id {new_mol_id} already exists in the database")
+
+            # Add the molecule to the database
+            curate_chembl.add_mol_desc_to_db([smiles], [new_mol_id], [descriptors], c)
+    except sqlite3.Error as e:
+        print(f"Database error: {e}")
+        return None
+
+    return new_mol_id
+
+
+def get_bioactivities():
+    # Connect to the SQLite database
+    conn = sqlite3.connect(os.path.join("data", "curated_chembl", "smiles_alphafold_v4_human_uniprot_chembl_bioactivities.db"))
+    cursor = conn.cursor()
+
+    # Execute the SQL query to fetch all rows from the bioactivities table
+    cursor.execute("SELECT * FROM bioactivities")
+    rows = cursor.fetchall()
+
+    # Close the database connection
+    conn.close()
+
+    # Return the rows as an array
+    return rows
+
     
-    return features, csr
+def get_CV_split():
+    rows = get_bioactivities()
+    random.seed(42)
+    random.shuffle(rows)
+
+    # Split into 5 folds
+    fold_size = len(rows) // 5
+    folds = []
+    for i in range(5):
+        folds.append(rows[i*fold_size:(i+1)*fold_size])
+
+    return folds
+
+
+def categorize_inhibitor(ic50_nm):
+    # TODO: Implement the categorize_inhibitor function
+
+
+def get_categorised_CV_split():
+    # TODO: Implement the get_categorised_CV_split function
 
 def get_bioactivities():
     # Connect to the SQLite database
@@ -210,7 +297,7 @@ def get_categorised_CV_split():
 
 db_path = os.path.join("data", "curated_chembl", "SMILES_metadata.db")
 
-def get_data_by_mol_id_or_smiles(db_path, search_value):
+def get_data_by_mol_id_or_smiles(search_value, db_path="data/curated_chembl/molecule_index.db"):
     # Determine if the search_value is a mol_id (integer) or smiles (string)
     if isinstance(search_value, int):
         search_column = 'mol_id'
@@ -313,27 +400,30 @@ if __name__ == "__main__":
     #print(categorised_folds[0][0])
     #print(len(categorised_folds[0]) * 5)
 
-    data = load_protein_graph("P05067")
-    print(data)
+    #data = load_protein_graph("P05067")
+    #print(data)
 
-    seq = load_protein_sequence("P05067")
-    print(seq)
+    #seq = load_protein_sequence("P05067")
+    #print(seq)
     
-    meta = load_protein_metadata("P05067")
-    print(meta)
+    #meta = load_protein_metadata("P05067")
+    #print(meta)
 
     aspirin_smiles = "CC(=O)OC1=CC=CC=C1C(O)=O"
-    desc = load_molecule_descriptors(aspirin_smiles)
-    print(desc)
+    #desc = load_molecule_descriptors(aspirin_smiles)
+    #print(desc)
 
     with open(os.path.join("data", "curated_chembl", "molecule_id_mappings", "smiles_to_id.json"), 'r') as f:
         smiles_to_id = json.load(f)
 
     smiles = list(smiles_to_id.keys())
 
-    mol_graph_0 = load_molecule_graph(smiles[0])
+    get_data_by_mol_id_or_smiles("COc1ccc(CN[C@@H](C(=O)N[C@H](C(=O)NCc2ccc(OC)cc2O)C(C)C)[C@H](O)[C@H](Cc2ccccc2)NC(=O)[C@@H](NC(=O)Cc2cccc3ccccc23)C(C)(C)C)cc1")
+
+    smiles, path = get_data_by_mol_id_or_smiles(2)
+    mol_graph_0 = load_molecule_graph(smiles)
     print(mol_graph_0)
-    mol_graph = load_molecule_graph(aspirin_smiles)
+    mol_graph = load_molecule_graph(2)
     print(mol_graph)
 
     #bioactivities = get_bioactivities()
