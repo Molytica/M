@@ -60,7 +60,43 @@ def load_protein_sequence(uniprot_id):
     print(f"File not found for UniProt ID {uniprot_id}")
     return None
 
+def add_molecule_data(db_path, mol_id, smiles, path_list):
+    # Validate input types
+    if not isinstance(mol_id, int):
+        raise ValueError("mol_id must be an integer")
+    if not isinstance(smiles, str):
+        raise ValueError("smiles must be a string")
+    if not isinstance(path_list, list) or not all(isinstance(p, str) for p in path_list):
+        raise ValueError("path_list must be a list of strings")
 
+    # Convert path_list to a comma-separated string
+    paths_comma_sep = ','.join(path_list)
+
+    try:
+        # Connect to the database
+        with sqlite3.connect(db_path) as conn:
+            c = conn.cursor()
+
+            # Prepare the SQL query
+            query = "INSERT INTO molecule_index (mol_id, smiles, path_comma_sep) VALUES (?, ?, ?)"
+
+            # Execute the query
+            c.execute(query, (mol_id, smiles, paths_comma_sep))
+
+            # Commit the transaction
+            conn.commit()
+
+            print("Molecule data added successfully.")
+
+            # Close the cursor
+            c.close()
+
+    except sqlite3.IntegrityError:
+        print("Error: mol_id already exists in the database.")
+    except sqlite3.Error as e:
+        raise sqlite3.Error(f"Database error: {e}")
+    except Exception as e:
+        raise Exception(f"An error occurred: {e}")
 
 def load_molecule_graph_form_id(mol_id, conf_id=0, target_output_path="data/curated_chembl", mol_id_to_path_preload=None):
     mol_id_to_path = {}
@@ -110,7 +146,6 @@ def get_CV_split():
         folds.append(rows[i*fold_size:(i+1)*fold_size])
 
     return folds
-
 
 
 def categorize_inhibitor(ic50_nm):
