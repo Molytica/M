@@ -1,8 +1,7 @@
 import os, sqlite3
 from concurrent.futures import ProcessPoolExecutor
-from molytica_m.data_tools import id_mapping_tools
 from molytica_m.data_tools.graph_tools import graph_tools_pytorch
-from molytica_m.data_tools import alpha_fold_tools
+from molytica_m.data_tools import alpha_fold_tools, id_mapping_tools
 from Bio.PDB import PDBParser
 import gzip
 import numpy as np
@@ -133,8 +132,7 @@ def create_PROTEIN_graphs(input_folder_path="data/curated_chembl/alpha_fold_data
         return
 
     arg_tuples = []
-    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
-    for folder_name in os.listdir(input_folder_path):
+    for folder_name in tqdm(os.listdir(input_folder_path), desc="Creating Instructions"):
         if not os.path.exists(os.path.join(output_folder_path, folder_name)):
             os.makedirs(os.path.join(output_folder_path, folder_name))
         for file_name in os.listdir(os.path.join(input_folder_path, folder_name)):
@@ -143,9 +141,10 @@ def create_PROTEIN_graphs(input_folder_path="data/curated_chembl/alpha_fold_data
                 output_path = os.path.join(output_folder_path, folder_name)
                 arg_tuples.append((input_path, output_path, file_name))
 
-    with ProcessPoolExecutor() as executor:
+    num_cores = int(0.99 * os.cpu_count())
+    print("Generating protein atom clouds...")
+    with ProcessPoolExecutor(max_workers=num_cores) as executor:
         _results = list(tqdm(executor.map(extract_af_protein_graph_file, arg_tuples), desc="Creating protein atom clouds", total=len(arg_tuples)))
-
 
 def create_SMILES_id_mappings(chembl_db_path, target_output_path="data/curated_chembl/"):
     if os.path.exists(os.path.join(target_output_path, "molecule_id_mappings", "id_to_smiles.json")):
@@ -466,22 +465,29 @@ def download_alphafold_data(target_output_path="data/curated_chembl/alpha_fold_d
         list(tqdm(pool.imap(download_and_extract_single, [(url, target_output_path) for url in urls]), total=len(urls)))
 
 
-def get_ordered_unique_col_values(columns, af_uniprots=alpha_fold_tools.get_alphafold_uniprot_ids(), id_mappings=pd.read_table("molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv")):
-    values = values = [set() for _ in range(len(columns))]
+def get_ordered_unique_col_values(interesting_columns):
+    af_uniprots = alpha_fold_tools.get_all_alphafold_uniprot_ids()
+
+    values = [set() for _ in range(len(interesting_columns))]
     print(values)
 
-    for uniprot in tqdm(af_uniprots, desc="Getting unique values"):
-        row = id_mappings[id_mappings['From'] == str(uniprot)].iloc[0]
+    for species in os.listdir(os.path.join("molytica_m", "data_tools", "protein_data")):
+        for file in os.listdir(os.path.join("molytica_m", "data_tools", "protein_data", species)):
+            if "idmapping" in file:
+                id_mappings = pd.read_table(os.path.join("molytica_m", "data_tools", "protein_data", species, file))
 
-        for col in columns:
-            col_id = list(columns).index(col)
-            vals = str(row[col]).split("; ")
-            for val in vals:
-                values[col_id].add(val)
+                for uniprot in tqdm(af_uniprots[species], desc="Getting unique values"):
+                    row = id_mappings[id_mappings['From'] == str(uniprot)].iloc[0]
+
+                    for col in interesting_columns:
+                        col_id = list(interesting_columns).index(col)
+                        vals = str(row[col]).split("; ")
+                        for val in vals:
+                            values[col_id].add(val)
     
     unique_value_lists_dict = {}
     for idx, value in enumerate(values):
-        unique_value_lists_dict[list(columns)[idx]] = sorted(list(value))
+        unique_value_lists_dict[list(interesting_columns)[idx]] = sorted(list(value))
     return unique_value_lists_dict
 
 
@@ -502,17 +508,15 @@ def create_PROTEIN_metadata(save_path="data/curated_chembl/af_metadata/", protei
             print("Metadata for proteins has already been created. Skipping...")
             return
 
+    unique_value_lists = get_ordered_unique_col_values(["Gene Ontology (GO)"])
+
+    interesting_columns = ["Gene Ontology (GO)"]
+
     for species in os.listdir(protein_data_dir):
-        if_mappings = None
-        for file in os.listdir(os.path.join(protein_data_dir, species)):
+        for file in os.listdir(os.path.join("molytica_m", "data_tools", "protein_data", species)):
             if "idmapping" in file:
-                id_mappings = pd.read_table(os.path.join(protein_data_dir, species, file))
+                id_mappings = pd.read_table(os.path.join("molytica_m", "data_tools", "protein_data", species, file))
         
-        columns = id_mappings.columns
-
-        unique_value_lists = get_ordered_unique_col_values(columns)
-
-        interesting_columns = ["Gene Ontology (GO)"]
         uniprot_metadata = {}
 
         for uniprot in tqdm(list(af_uniprots[species]), desc="Generating Metadata files"):
@@ -552,6 +556,17 @@ def calculate_descriptors(smiles_string):
 
     return descriptors
 
+def get_mol_id(smiles):
+    with open("data/curated_chembl/molecule_id_mappings/smiles_to_id.json", 'r') as f:
+        smiles_to_id = json.load(f)
+    if smiles in smiles_to_id:
+        return smiles_to_id[smiles]
+    else:
+        new_id = len(smiles_to_id)
+        smiles_to_id[smiles] = new_id
+        with open("data/curated_chembl/molecule_id_mappings/smiles_to_id.json", 'w') as f:
+            json.dump(smiles_to_id, f)
+
 def create_db_and_table(path="data/curated_chembl/SMILES_metadata.db"):
     smiles_string = "CC(=O)OC1=CC=CC=C1C(=O)O"  # Just example to create the column names for the descriptors
     descriptors = calculate_descriptors(smiles_string)
@@ -583,6 +598,57 @@ def add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c):
 
     # Execute the SQL command
     c.executemany(sql_command, data)
+
+
+def create_mol_index_db(db_path="data/curated_chembl/molecule_index.db"):
+    # Using 'with' statement for automatic handling of the connection
+    with sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+
+        # Create a table with columns: mol_id (integer), smiles (text), and path (text)
+        c.execute('''CREATE TABLE IF NOT EXISTS molecule_index
+                     (mol_id INTEGER, smiles TEXT, path_comma_sep TEXT)''')
+
+        # Changes are automatically committed and connection is closed after the 'with' block
+
+
+def populate_mol_index_db(c):
+    # Get the list of all smiles strings
+    with open("data/curated_chembl/molecule_id_mappings/id_to_smiles.json", 'r') as f:
+        id_to_smiles = json.load(f)
+
+    smiles = list(id_to_smiles.values())
+    mol_ids = list(id_to_smiles.keys())
+
+    # Get the list of all paths
+    paths = {} # The paths with key as mol_id and value as list of paths
+    for folder in tqdm(os.listdir("data/curated_chembl/molecule_graphs_coo"), desc="Populating mol index"):
+        for file in os.listdir(os.path.join("data/curated_chembl/molecule_graphs_coo", folder)):
+            mol_id = file.split("_")[0]
+            if mol_id not in paths:
+                paths[mol_id] = []
+            paths[mol_id].append(os.path.join("data/curated_chembl/molecule_graphs_coo", folder, file))
+
+    # Prepare the batch of data
+    data = [(mol_id, smile, ",".join(paths[mol_id])) for mol_id, smile in zip(mol_ids, smiles) if mol_id in paths]
+    
+    # Define the SQL command for batch insertion
+    placeholders = ', '.join(['?'] * (3))  # 2 for mol_id and smile, rest for path
+    sql_command = f"INSERT OR REPLACE INTO molecule_index VALUES ({placeholders})"
+
+    # Execute the SQL command
+    c.executemany(sql_command, data)
+
+def create_proper_mol_index(db_path="data/curated_chembl/molecule_index.db"):
+    if not os.path.exists("data/curated_chembl/molecule_index.db"):
+        create_mol_index_db(db_path)
+    else:
+        print("Molecule index already exists. Skipping...")
+        return
+
+    with sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        populate_mol_index_db(c)
 
 
 def create_SMILES_metadata(target_output_path="data/curated_chembl/"):
@@ -865,7 +931,7 @@ def main():
     curated_chembl_db_folder_path = "data/curated_chembl/"
     new_db_name = 'smiles_alphafold_v4_human_uniprot_chembl_bioactivities.db'
     protein_graph_output_path = "data/curated_chembl/af_protein_1_dot_5_angstrom_graphs"
-    protein_metadata_tsv_path = "molytica_m/data_tools/idmapping_af_uniprot_metadata.tsv" # Curated metadata created by pasting all the uniprot ids into uniprot website id mapping tool
+    protein_metadata_tsv_path = "molytica_m/data_tools/af_uniprot_metadata.tsv" # Curated metadata created by pasting all the uniprot ids into uniprot website id mapping tool
     target_output_path = "data/curated_chembl"
     target_protein_metadata_output_path = "data/curated_chembl/af_metadata"
     curated_chembl_db_path = os.path.join(curated_chembl_db_folder_path, new_db_name)
@@ -887,6 +953,7 @@ def main():
         print("Skipping SMILES graph creation..., Manually adjust this in the bottom of the code curate_chembl.py if you haven't already")
     create_SMILES_path_mappings(target_output_path)
     convert_SMILES_to_coo(target_output_path)
+    create_proper_mol_index()
 
 if __name__ == "__main__":
     main()

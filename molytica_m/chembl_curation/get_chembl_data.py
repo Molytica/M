@@ -7,6 +7,7 @@ import json
 from torch_geometric.data import Data
 from molytica_m.data_tools.graph_tools import graph_tools_pytorch
 from concurrent.futures import ProcessPoolExecutor
+from molytica_m.chembl_curation import curate_chembl
 
 def load_protein_graph(uniprot_id, fold_n=1):
     speciess = os.listdir(os.path.join("data", "curated_chembl", "af_protein_1_dot_5_angstrom_graphs"))
@@ -60,12 +61,16 @@ def load_protein_sequence(uniprot_id):
     return None
 
 
-def load_molecule_graph(mol_id, conf_id=0, target_output_path="data/curated_chembl"):
-    mol_id_to_path = {}
-    with open(os.path.join(target_output_path, "molecule_id_mappings", "mol_id_to_path.json"), 'r') as f:
-        mol_id_to_path = json.load(f)
 
-    file_path = mol_id_to_path[mol_id + "_" + conf_id]
+def load_molecule_graph_form_id(mol_id, conf_id=0, target_output_path="data/curated_chembl", mol_id_to_path_preload=None):
+    mol_id_to_path = {}
+    if mol_id_to_path_preload is None:
+        with open(os.path.join(target_output_path, "molecule_id_mappings", "mol_id_to_path.json"), 'r') as f:
+            mol_id_to_path = json.load(f)
+    else:
+        mol_id_to_path = mol_id_to_path_preload
+
+    file_path = mol_id_to_path[mol_id + "_" + str(conf_id)]
     
     # Check if the file exists
     if not os.path.exists(file_path):
@@ -169,37 +174,81 @@ def get_categorised_CV_split():
 
 
 db_path = os.path.join("data", "curated_chembl", "SMILES_metadata.db")
-conn = sqlite3.connect(db_path)
-c = conn.cursor()
+
+def get_data_by_mol_id_or_smiles(db_path, search_value):
+    # Determine if the search_value is a mol_id (integer) or smiles (string)
+    if isinstance(search_value, int):
+        search_column = 'mol_id'
+        return_column = 'smiles'
+    elif isinstance(search_value, str):
+        search_column = 'smiles'
+        return_column = 'mol_id'
+    else:
+        raise ValueError("search_value must be either an integer (mol_id) or a string (smiles)")
+
+    # Connect to the database
+    with sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+
+        # Prepare the SQL query
+        query = f"SELECT {return_column}, path_comma_sep FROM molecule_index WHERE {search_column} = ?"
+
+        # Execute the query
+        c.execute(query, (search_value,))
+
+        # Fetch the matching row
+        row = c.fetchone()
+
+        if row:
+            # Extract the return value and paths
+            return_value, paths = row
+            path_list = paths.split(',')
+            return return_value, path_list
+        else:
+            return None, []
+
 
 def load_molecule_descriptors(smiles):
-    # Define the SQL command to select the row
-    sql_command = "SELECT * FROM mol_metadata WHERE mol_canonical_smiles = ?"
-    c.execute(sql_command, (smiles,))
+    with sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        # Define the SQL command to select the row
+        sql_command = "SELECT * FROM mol_metadata WHERE mol_canonical_smiles = ?"
+        c.execute(sql_command, (smiles,))
 
-    # Fetch the result
-    result = c.fetchone()
+        # Fetch the result
+        result = c.fetchone()
 
     if result is None:
-        return None
+        descriptors = curate_chembl.calculate_descriptors(smiles)
+        mol_id = curate_chembl.get_mol_id(smiles)
+        with sqlite3.connect(db_path) as conn:
+            c = conn.cursor()
+            curate_chembl.add_mol_desc_to_db([smiles], [mol_id], [descriptors], c)
+        return load_molecule_descriptors(smiles)
 
     # Assuming the first two columns are mol_molytica_id and mol_canonical_smiles
     descriptors = result[2:]
 
     return descriptors
 
-def add_molecule_descriptors(smiles, descriptors):
+def add_molecule_descriptors(smiles): # Takes in a list of smiles
     num_cores = os.cpu_count()
     num_workers = int(num_cores * 0.9)
 
-    with ProcessPoolExecutor(max_workers=num_workers) as executor:
-        batch_descriptors = executor.map(calculate_descriptors, batch_id_to_smiles.values())
+    with open(os.path.join("data", "curated_chembl", "molecule_id_mappings", "smiles_to_id.json"), 'r') as f:
+        smiles_to_id = json.load(f)
 
-    smiles = list(batch_id_to_smiles.values())
-    mol_ids = list(batch_id_to_smiles.keys())
+    with ProcessPoolExecutor(max_workers=num_workers) as executor:
+        batch_descriptors = executor.map(curate_chembl.calculate_descriptors, smiles)
+
+    mol_ids = [smiles_to_id[smile] for smile in smiles]
     batch_descriptors = list(batch_descriptors)
 
-    add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c)
+    with sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        curate_chembl.add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c)
+    
+    return batch_descriptors.values()
 
 
 def load_protein_metadata(uniprot_id):
@@ -239,7 +288,18 @@ if __name__ == "__main__":
     print(meta)
 
     aspirin_smiles = "CC(=O)OC1=CC=CC=C1C(O)=O"
-    desc = load_molecule_descriptors()
+    desc = load_molecule_descriptors(aspirin_smiles)
+    print(desc)
+
+    with open(os.path.join("data", "curated_chembl", "molecule_id_mappings", "smiles_to_id.json"), 'r') as f:
+        smiles_to_id = json.load(f)
+
+    smiles = list(smiles_to_id.keys())
+
+    mol_graph_0 = load_molecule_graph(smiles[0])
+    print(mol_graph_0)
+    mol_graph = load_molecule_graph(aspirin_smiles)
+    print(mol_graph)
 
     #bioactivities = get_bioactivities()
     #print(bioactivities[0])
