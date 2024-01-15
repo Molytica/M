@@ -620,11 +620,24 @@ def pre_cache_molecule_embeddings():
             c.execute(sql_command, (mol_id, smiles, embed))
 
 
-def pre_cache_protein_embeddings():
+def pre_cache_protein_embeddings(species_of_interest=None):
     tokenizer, model, device = protT5.get_protT5_stuff()
 
-    for species in tqdm(os.listdir("data/curated_chembl/protein_sequences"), desc="Generating all protein embeddings"):
+    species_to_iterate = species_of_interest if species_of_interest else os.listdir("data/curated_chembl/protein_sequences")
+    idx = -1
+    for species in tqdm(species_to_iterate, desc="Generating all protein embeddings"):
+        idx += 1
         species_folder = os.path.join("data/curated_chembl/protein_embeddings", species)
+
+        if os.path.exists(species_folder):
+            if not os.path.exists(os.path.join("data/curated_chembl/protein_embeddings", species_to_iterate[idx + 1])):
+                shutil.rmtree(species_folder)
+                os.makedirs(species_folder)
+                print(f"Recreating {species_folder}...")
+            else:
+                print(f"Protein embeddings for {species} already exist. Skipping...")
+                continue
+        
         if not os.path.exists(species_folder):
             os.makedirs(species_folder)
 

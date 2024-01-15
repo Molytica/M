@@ -1,5 +1,5 @@
 from molytica_m.chembl_curation import get_chembl_data
-
+import torch
 
 def get_input_from_smiles_target_and_modulation(smiles, target_uniprot, modulation):
     
@@ -16,11 +16,28 @@ def get_input_from_smiles_target_and_modulation(smiles, target_uniprot, modulati
     return smiles, molecule_descriptors, molecule_graph, protein_metadata, protein_graph, smiles_embedding, protein_embedding
 
 
-def train_on_data_early_stop(train_data, val_data):
-    pass
+def train_on_data_early_stop(train_data, val_data, model):
+    while True:
+        # Do keyboard interrupt to stop training
 
-def test_on_data(test_data):
-    pass
+        # Train the model
+
+
+        # Validate the model
+        val_metrics = test_on_data(val_data, model)
+
+def test_on_data(test_data, model):
+    with torch.no_grad():
+        # Get input data
+        smiles, molecule_descriptors, molecule_graph, protein_metadata, protein_graph, smiles_embedding, protein_embedding = get_input_from_smiles_target_and_modulation(smiles, target_uniprot, modulation)
+
+        # Calculate the logits
+        logits = model(smiles_embedding, protein_embedding)
+
+        # Calculate the metrics
+        metrics = calculate_metrics(logits, molecule_descriptors, molecule_graph, protein_metadata, protein_graph)
+
+        return metrics
 
 
 def train():
