@@ -96,6 +96,11 @@ def get_ppi_prob(conn, uniprot_A, uniprot_B):
     else:
         return None  # Or an appropriate default value or error handling
 
+def add_ppi_prob(uniprot_A, uniprot_B): # Add a new PPI probability to the database if it doesn't already exist
+    if not get_ppi_prob(uniprot_A, uniprot_B):
+        PPI_prob = predict_PPI_prob_bidirectional(uniprot_A, uniprot_B)
+        insert_ppi_prob(uniprot_A, uniprot_B, PPI_prob)
+
 def _get_ppi_prob(conn, uniprot_A, uniprot_B):
     cur = conn.cursor()
     protein1, protein2 = sorted([uniprot_A, uniprot_B])
@@ -112,9 +117,8 @@ def get_ppi_prob(uniprot_A, uniprot_B, db_path='data/ppi_probs.db'):
 
 if __name__ == "__main__":
     create_database()
-    conn = sqlite3.connect('data/ppi_probs.db')
 
-    af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
+    af_uniprots = alpha_fold_tools.get_all_alphafold_uniprot_ids()["HUMAN"]
     total_iterations = len(af_uniprots) * (len(af_uniprots) + 1) / 2
     progress_bar = tqdm(total=total_iterations, desc="Overall progress")
 
@@ -123,10 +127,9 @@ if __name__ == "__main__":
         for uniprot_B in af_uniprots[i:]:
             count += 1
             progress_bar.update(1)
-            if count < 73465333:
+            if count < 0:
                 continue
-            PPI_prob = predict_PPI_prob_bidirectional(uniprot_A, uniprot_B)
-            insert_ppi_prob(conn, uniprot_A, uniprot_B, PPI_prob)
+            add_ppi_prob(uniprot_A, uniprot_B)
 
     progress_bar.close()
     conn.close()
