@@ -615,13 +615,6 @@ def pre_cache_molecule_embeddings():
     with open("data/curated_chembl/molecule_id_mappings/id_to_smiles.json", 'r') as f:
         id_to_smiles = json.load(f)
 
-    with sqlite3.connect("data/curated_chembl/smiles_embeddings.db") as conn:
-        if check_db_row_count(conn, id_to_smiles):
-            print("SMILES Embeddings database filledd. Skipping...")
-            return
-        else:
-            print("Generating SMILES embeddings database...")
-
     # Define the number of REAL columns
     num_real_columns = 600
 
@@ -645,6 +638,13 @@ def pre_cache_molecule_embeddings():
         # Changes are automatically committed and connection is closed after the 'with' block
 
     # If len of db is the same as the len of id_to_smiles.values()
+        
+    with sqlite3.connect("data/curated_chembl/smiles_embeddings.db") as conn:
+        if check_db_row_count(conn, id_to_smiles):
+            print("SMILES Embeddings database filledd. Skipping...")
+            return
+        else:
+            print("Generating SMILES embeddings database...")
 
     tok, mod = chemBERT.get_chemBERT_tok_mod()
     # Loop through molecules
@@ -656,8 +656,6 @@ def pre_cache_molecule_embeddings():
                 embed = chemBERT.get_molecule_mean_logits(smiles, tok, mod)[0][0]  # Selecting the first embedding
                 embed_array = embed.cpu().numpy()
                 embed_list = embed_array.tolist()
-
-                print(embed_list)
 
                 # Define placeholders for mol_id, smiles, and 600 real values
                 placeholders = ', '.join(['?'] * (2 + len(embed_list)))  # 2 for mol_id and smiles, rest for embed values
@@ -1061,6 +1059,7 @@ def main():
     convert_SMILES_to_coo(target_output_path)
     create_proper_mol_index()
     pre_cache_protein_embeddings()
+    pre_cache_molecule_embeddings()
 
 if __name__ == "__main__":
     main()
