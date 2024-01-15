@@ -590,34 +590,86 @@ def create_db_and_table(path="data/curated_chembl/SMILES_metadata.db"):
         c.execute(sql_command)
     # The connection is automatically closed here
 
+
+def mol_exists(conn, mol_id, smiles):
+    """
+    Check if a molecule with given mol_id and smiles already exists in the database.
+    """
+    query = "SELECT 1 FROM molecule_embeddings WHERE mol_id = ? AND smiles = ?"
+    c = conn.cursor()
+    c.execute(query, (mol_id, smiles))
+    return c.fetchone() is not None
+
+
+def check_db_row_count(conn, id_to_smiles):
+    """
+    Check if the number of rows in the database is the same as the number of entries in the id_to_smiles dictionary.
+    """
+    query = "SELECT COUNT(*) FROM molecule_embeddings"
+    c = conn.cursor()
+    c.execute(query)
+    row_count = c.fetchone()[0]
+    return row_count == len(id_to_smiles)
+
 def pre_cache_molecule_embeddings():
     with open("data/curated_chembl/molecule_id_mappings/id_to_smiles.json", 'r') as f:
         id_to_smiles = json.load(f)
 
     with sqlite3.connect("data/curated_chembl/smiles_embeddings.db") as conn:
+        if check_db_row_count(conn, id_to_smiles):
+            print("SMILES Embeddings database filledd. Skipping...")
+            return
+        else:
+            print("Generating SMILES embeddings database...")
+
+    # Define the number of REAL columns
+    num_real_columns = 600
+
+    # Generate the column definitions for the 600 REAL values
+    # Each column will be named like real1, real2, ..., real600
+    real_columns = ', '.join([f'real{i} REAL' for i in range(1, num_real_columns + 1)])
+
+    # SQL statement to create the table
+    sql_create_table = f'''
+    CREATE TABLE IF NOT EXISTS molecule_embeddings (
+        mol_id INTEGER,
+        smiles TEXT,
+        {real_columns}
+    )
+    '''
+
+    # Connect to the SQLite database and create the table
+    with sqlite3.connect("data/curated_chembl/smiles_embeddings.db") as conn:
         c = conn.cursor()
-
-        # Create a table with columns: mol_id (integer), smiles (text), and path (text)
-        c.execute('''CREATE TABLE IF NOT EXISTS molecule_embeddings
-                     (mol_id INTEGER, smiles TEXT, embedding BLOB)''')
-
+        c.execute(sql_create_table)
         # Changes are automatically committed and connection is closed after the 'with' block
 
+    # If len of db is the same as the len of id_to_smiles.values()
+
     tok, mod = chemBERT.get_chemBERT_tok_mod()
+    # Loop through molecules
     for mol_id, smiles in tqdm(zip(id_to_smiles.keys(), id_to_smiles.values()), desc="Generating all molecule embeddings"):
-        
-        embed = chemBERT.get_molecule_mean_logits(smiles, tok, mod)[0]  # Selecting the first embedding
-
         with sqlite3.connect("data/curated_chembl/smiles_embeddings.db") as conn:
-            c = conn.cursor()
+            # Check if the molecule already exists in the database
+            if not mol_exists(conn, mol_id, smiles):
+                # If not, generate the embedding
+                embed = chemBERT.get_molecule_mean_logits(smiles, tok, mod)[0][0]  # Selecting the first embedding
+                embed_array = embed.cpu().numpy()
+                embed_list = embed_array.tolist()
 
-            # Insert the mol_id, smiles, and embedding into the database
+                print(embed_list)
 
-            # Define the SQL command for batch insertion
-            sql_command = f"INSERT OR REPLACE INTO molecule_embeddings VALUES (?, ?, ?)"
+                # Define placeholders for mol_id, smiles, and 600 real values
+                placeholders = ', '.join(['?'] * (2 + len(embed_list)))  # 2 for mol_id and smiles, rest for embed values
 
-            # Execute the SQL command
-            c.execute(sql_command, (mol_id, smiles, embed))
+                # Define the SQL command for insertion
+                sql_command = f"INSERT OR REPLACE INTO molecule_embeddings VALUES ({placeholders})"
+
+                # Create the data tuple for insertion
+                data_tuple = (mol_id, smiles) + tuple(embed_list)
+
+                # Execute the SQL command
+                conn.execute(sql_command, data_tuple)
 
 
 def pre_cache_protein_embeddings(species_of_interest=None):
@@ -625,6 +677,11 @@ def pre_cache_protein_embeddings(species_of_interest=None):
 
     species_to_iterate = species_of_interest if species_of_interest else os.listdir("data/curated_chembl/protein_sequences")
     idx = -1
+
+    if len(os.listdir("data/curated_chembl/protein_embeddings")) == len(species_to_iterate):
+        print("Protein embeddings already exist. Skipping...")
+        return
+
     for species in tqdm(species_to_iterate, desc="Generating all protein embeddings"):
         idx += 1
         species_folder = os.path.join("data/curated_chembl/protein_embeddings", species)
