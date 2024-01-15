@@ -648,7 +648,7 @@ def pre_cache_molecule_embeddings():
 
     tok, mod = chemBERT.get_chemBERT_tok_mod()
     # Loop through molecules
-    for mol_id, smiles in tqdm(zip(id_to_smiles.keys(), id_to_smiles.values()), desc="Generating all molecule embeddings"):
+    for mol_id, smiles in tqdm(list(zip(id_to_smiles.keys(), id_to_smiles.values())), desc="Generating all molecule embeddings"):
         with sqlite3.connect("data/curated_chembl/smiles_embeddings.db") as conn:
             # Check if the molecule already exists in the database
             if not mol_exists(conn, mol_id, smiles):
@@ -671,8 +671,6 @@ def pre_cache_molecule_embeddings():
 
 
 def pre_cache_protein_embeddings(species_of_interest=None):
-    tokenizer, model, device = protT5.get_protT5_stuff()
-
     species_to_iterate = species_of_interest if species_of_interest else os.listdir("data/curated_chembl/protein_sequences")
     idx = -1
 
@@ -680,6 +678,7 @@ def pre_cache_protein_embeddings(species_of_interest=None):
         print("Protein embeddings already exist. Skipping...")
         return
 
+    tokenizer, model, device = protT5.get_protT5_stuff()
     for species in tqdm(species_to_iterate, desc="Generating all protein embeddings"):
         idx += 1
         species_folder = os.path.join("data/curated_chembl/protein_embeddings", species)

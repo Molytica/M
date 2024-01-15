@@ -2,6 +2,7 @@ from setuptools import setup, find_packages
 
 
 # Also install sudo apt-get install openbabel
+# Also install vina via https://pypi.org/project/vina/
 
 setup(
     name='molytica_m',
@@ -24,7 +25,7 @@ setup(
         'requests',
         'beautifulsoup4',
         'genai',
-        'sentencepiece'
-
+        'sentencepiece',
+        'vina'
     ],
 )
