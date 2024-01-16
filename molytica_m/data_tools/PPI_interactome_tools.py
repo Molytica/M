@@ -99,7 +99,8 @@ def get_ppi_prob(conn, uniprot_A, uniprot_B):
 def add_ppi_prob(uniprot_A, uniprot_B): # Add a new PPI probability to the database if it doesn't already exist
     if not get_ppi_prob(uniprot_A, uniprot_B):
         PPI_prob = predict_PPI_prob_bidirectional(uniprot_A, uniprot_B)
-        insert_ppi_prob(uniprot_A, uniprot_B, PPI_prob)
+        with sqlite3.connect('data/ppi_probs.db') as conn:
+            insert_ppi_prob(conn, uniprot_A, uniprot_B, PPI_prob)
 
 def _get_ppi_prob(conn, uniprot_A, uniprot_B):
     cur = conn.cursor()
