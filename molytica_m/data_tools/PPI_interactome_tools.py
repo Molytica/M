@@ -113,8 +113,6 @@ def get_ppi_prob(uniprot_A, uniprot_B, db_path='data/ppi_probs.db'):
     with sqlite3.connect(db_path) as conn:
         return _get_ppi_prob(conn, uniprot_A, uniprot_B)
 
-
-
 if __name__ == "__main__":
     create_database()
 
@@ -132,7 +130,6 @@ if __name__ == "__main__":
             add_ppi_prob(uniprot_A, uniprot_B)
 
     progress_bar.close()
-    conn.close()
     
 """
 

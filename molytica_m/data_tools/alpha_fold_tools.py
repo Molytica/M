@@ -19,20 +19,14 @@ def get_all_alphafold_uniprot_ids(af_data_folder_path="data/curated_chembl/alpha
                 continue
             af_uniprot = file_name.split("-")[1]
             af_uniprots[folder].add(af_uniprot)
+
+        af_uniprots[folder] = sorted(list(af_uniprots[folder]))
     
     return af_uniprots
 
 
 def get_alphafold_uniprot_ids(af_data_folder_path="data/curated_chembl/alpha_fold_data"):
-    global loaded
-    global alpha_fold_data  # Declare alpha_fold_data as global
-    if not loaded:
-        alpha_fold_data = generate_alpha_fold_data(af_data_folder_path)
-        if alpha_fold_data is None:
-            print("AlphaFold data not found")
-        else:
-            loaded = True
-    return alpha_fold_data
+    return get_all_alphafold_uniprot_ids()["HUMAN"]
 
 
 if __name__ == "__main__":

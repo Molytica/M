@@ -17,7 +17,7 @@ import sys
 import os
 
 
-af_uniprots = alpha_fold_tools.get_all_alphafold_uniprot_ids()["HUMAN"]
+af_uniprots = alpha_fold_tools.get_alphafold_uniprot_ids()
 n_af_uniprots = len(af_uniprots)
 
 with open("molytica_m/data_tools/filtered_no_reverse_duplicates_huri_and_biogrid_af_uniprot_edges.json", "r") as file:

@@ -1039,26 +1039,26 @@ def main():
     target_protein_metadata_output_path = "data/curated_chembl/af_metadata"
     curated_chembl_db_path = os.path.join(curated_chembl_db_folder_path, new_db_name)
 
-    download_and_extract_chembl()
+    #download_and_extract_chembl()
 
-    id_mapping_tools.generate_index_dictionaries(raw_chembl_db_path)
+    #id_mapping_tools.generate_index_dictionaries(raw_chembl_db_path)
 
     download_alphafold_data(alphafold_folder_path)
-    curate_raw_chembl(raw_chembl_db_path, curated_chembl_db_folder_path, new_db_name)
-    create_PROTEIN_graphs(alphafold_folder_path, protein_graph_output_path)
-    create_PROTEIN_metadata(target_protein_metadata_output_path)
-    create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
-    create_SMILES_metadata(target_output_path)
-    create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
+    #curate_raw_chembl(raw_chembl_db_path, curated_chembl_db_folder_path, new_db_name)
+    #create_PROTEIN_graphs(alphafold_folder_path, protein_graph_output_path)
+    #create_PROTEIN_metadata(target_protein_metadata_output_path)
+    #create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
+    #create_SMILES_metadata(target_output_path)
+    #create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
     if False: # Manually adjust this to create or not create the SMILES graphs
         create_SMILES_graphs(target_output_path)
     else:
         print("Skipping SMILES graph creation..., Manually adjust this in the bottom of the code curate_chembl.py if you haven't already")
-    create_SMILES_path_mappings(target_output_path)
-    convert_SMILES_to_coo(target_output_path)
-    create_proper_mol_index()
-    pre_cache_protein_embeddings()
-    pre_cache_molecule_embeddings()
+    #create_SMILES_path_mappings(target_output_path)
+    #convert_SMILES_to_coo(target_output_path)
+    #create_proper_mol_index()
+    #pre_cache_protein_embeddings()
+    #pre_cache_molecule_embeddings()
 
 if __name__ == "__main__":
     main()
