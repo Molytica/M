@@ -59,7 +59,7 @@ def get_metadata(af_uniprot):
     return metadata_vector
 
 def get_graph(af_uniprot):
-    file_name = f"data/af_protein_1_dot_5_angstrom_graphs/{af_uniprot}_graph.h5"
+    file_name = f"data/af_protein_1_dot_5_angstrom_graphs/{af_uniprot}_F1_graph.h5"
 
     with h5py.File(file_name, 'r') as h5file:
         edge_index = torch.tensor(h5file['edge_index'][:], dtype=torch.long)
@@ -69,7 +69,7 @@ def get_graph(af_uniprot):
     return atom_features, edge_index
 
 def get_graph_raw(af_uniprot):
-    file_name = f"data/af_protein_1_dot_5_angstrom_graphs/{af_uniprot}_graph.h5"
+    file_name = f"data/af_protein_1_dot_5_angstrom_graphs/{af_uniprot}_F1_graph.h5"
 
     with h5py.File(file_name, 'r') as h5file:
         edge_index = h5file['edge_index'][:]

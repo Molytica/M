@@ -87,6 +87,6 @@ for epoch in range(num_epochs):
     val_acc = np.mean(val_correct)
     if val_acc > val_max_acc:
         print(f"Accuracy {val_acc} was better than previous best of {val_max_acc}. Saving model.")
-        torch.save(model, 'molytica_m/ml/PPI_model.pth')
+        torch.save(model, 'molytica_m/ml/PPI_model_verify.pth')
         val_max_acc = val_acc
 

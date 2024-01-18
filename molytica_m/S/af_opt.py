@@ -86,7 +86,7 @@ def opt_af_coords_for_species(speciess):
             args.append((species, file_name, uniprot_id))
             
         
-        process_map(process_protein, args, max_workers=4)
+        process_map(process_protein, args, max_workers=30)
 
 
 
