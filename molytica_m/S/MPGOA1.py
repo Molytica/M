@@ -49,11 +49,12 @@ def pdb_to_atom_cloud(pdb_file_path: str) -> np.ndarray:
 
     return np.array(atom_coordinates)
 
-def get_random_protein_cloud(species: str = "9EURO1"):
+def get_random_protein_cloud(species: str = "HUMAN"):
     random_protein = random.choice(os.listdir(f"data/curated_chembl/alpha_fold_data/{species}"))
     while ".pdb" not in random_protein:
         random_protein = random.choice(os.listdir(f"data/curated_chembl/alpha_fold_data/{species}"))
     
+    print(random_protein.split("-")[1])
     # file is in pdb.gz format
     # Get the atom coordinates from the PDB file
     atom_coordinates = pdb_to_atom_cloud(f"data/curated_chembl/alpha_fold_data/{species}/{random_protein}")
