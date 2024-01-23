@@ -26,6 +26,6 @@ setup(
         'beautifulsoup4',
         'genai',
         'sentencepiece',
-        'vina'
+        'vina',
     ],
 )

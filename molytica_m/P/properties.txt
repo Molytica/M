@@ -1,0 +1,19 @@
+You will be given an element and your job is to list the following properties.
+
+Atomic Number (Z): The atomic number, equal to the number of protons in the nucleus, fundamentally defines the element. It determines the atom's identity and its position in the periodic table, influencing its chemical properties.
+
+Electron Configuration: The arrangement of electrons in atomic orbitals significantly influences an atom's reactivity, ionization energy, and chemical bonding. For example, noble gases have full outer electron shells, making them largely unreactive.
+
+Electronegativity: This is a measure of an atom's ability to attract and hold onto electrons. Higher electronegativity means greater attraction for electrons, influencing the atom's chemical bonds and reactivity.
+
+Ionization Energy: This is the energy required to remove an electron from an atom. Higher ionization energy typically indicates a less reactive atom.
+
+Atomic Radius: The size of an atom affects its reactivity and the nature of its bonds. Smaller atoms, with electrons closer to the nucleus, tend to be more electronegative.
+
+Valence Electrons: The electrons in the outermost shell of an atom play a crucial role in chemical bonding and reactivity. Elements with a full valence shell are generally less reactive.
+
+Electron Affinity: This is the energy change that occurs when an electron is added to a neutral atom. A higher electron affinity indicates a greater likelihood of gaining electrons and forming negative ions.
+
+Mass Number (A): Although not directly affecting chemical properties, the mass number (protons + neutrons) influences the atomic mass and isotopic composition, which can affect physical properties and some nuclear interactions.
+
+Oxidation States: The possible charges an atom can carry during a chemical reaction affect its chemical behavior and the types of compounds it can form.

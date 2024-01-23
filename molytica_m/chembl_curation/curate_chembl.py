@@ -29,7 +29,7 @@ import torch
 from torch_geometric.data import Data
 import multiprocessing
 from multiprocessing import Pool, cpu_count
-from molytica_m.arch_2 import chemBERT, protT5
+from molytica_m.arch2 import chemBERT, protT5
 from molytica_m.chembl_curation import get_chembl_data
 
 # Curate chembl data for all species and store in a folder system
