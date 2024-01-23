@@ -10,23 +10,23 @@ from multiprocessing import Pool
 from tqdm.contrib.concurrent import process_map  # Import process_map
 
 atom_type_to_float = {
-    'C': 0.0,  # Carbon
-    'N': 1.0,  # Nitrogen
-    'O': 2.0,  # Oxygen
-    'S': 3.0,  # Sulfur
-    'P': 4.0,  # Phosphorus
-    'F': 5.0,  # Fluorine
-    'Cl': 6.0, # Chlorine
-    'Br': 7.0, # Bromine
-    'I': 8.0,  # Iodine
-    'Na': 9.0, # Sodium
-    'K': 10.0, # Potassium
-    'B': 11.0, # Boron
-    'Si': 12.0,# Silicon
-    'Se': 13.0,# Selenium
-    'Li': 14.0,# Lithium
-    'Zn': 15.0,# Zinc
-    'Se': 17.0,# Selenium
+    'C': 0.0,   # Carbon
+    'N': 1.0,   # Nitrogen
+    'O': 2.0,   # Oxygen
+    'S': 3.0,   # Sulfur
+    'P': 4.0,   # Phosphorus
+    'F': 5.0,   # Fluorine
+    'Cl': 6.0,  # Chlorine
+    'Br': 7.0,  # Bromine
+    'I': 8.0,   # Iodine
+    'Na': 9.0,  # Sodium
+    'K': 10.0,  # Potassium
+    'B': 11.0,  # Boron
+    'Si': 12.0, # Silicon
+    'Se': 13.0, # Selenium
+    'Li': 14.0, # Lithium
+    'Zn': 15.0, # Zinc
+    'Se': 17.0, # Selenium
 }
 
 def extract_atom_data_from_pdbgz_text(pdbgz_file):
@@ -49,8 +49,6 @@ def extract_atom_data_from_pdbgz_text(pdbgz_file):
                     print(e)
                     print(line)
     return atom_data
-
-
 
 def process_protein(args):
     species, file_name, uniprot_id = args
