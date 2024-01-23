@@ -16,6 +16,15 @@ def plot_protein_point_cloud(species, protein_id):
     # Scatter plot using atom coordinates
     ax.scatter(atom_data[:, 1], atom_data[:, 2], atom_data[:, 3], c=atom_data[:, 0], cmap='viridis')
 
+    # Find global max and min for x, y, z coordinates
+    overall_min = np.min(atom_data[:, 1:4])
+    overall_max = np.max(atom_data[:, 1:4])
+
+    # Set axis limits to the same range for x, y, z
+    ax.set_xlim(overall_min, overall_max)
+    ax.set_ylim(overall_min, overall_max)
+    ax.set_zlim(overall_min, overall_max)
+
     ax.set_xlabel('X Axis')
     ax.set_ylabel('Y Axis')
     ax.set_zlabel('Z Axis')
