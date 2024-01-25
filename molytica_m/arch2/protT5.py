@@ -32,3 +32,24 @@ def calculate_mean_embeddings(sequence_list, tokenizer, model, device):
         mean_embeddings.append(emb_per_protein)
 
     return mean_embeddings
+
+def calculate_embeddings(sequence_list, tokenizer, model, device):
+    # Preprocess sequences
+    processed_sequences = [" ".join(list(re.sub(r"[UZOB]", "X", sequence))) for sequence in sequence_list]
+
+    # Tokenize and pad sequences
+    ids = tokenizer(processed_sequences, add_special_tokens=True, padding="longest")
+    input_ids = torch.tensor(ids['input_ids']).to(device)
+    attention_mask = torch.tensor(ids['attention_mask']).to(device)
+
+    # Generate embeddings
+    with torch.no_grad():
+        embedding_repr = model(input_ids=input_ids, attention_mask=attention_mask)
+
+    mean_embeddings = []
+    for i in range(len(sequence_list)):
+        seq_len = len(sequence_list[i]) # Subtract special tokens
+        emb = embedding_repr.last_hidden_state[i, :seq_len]
+        mean_embeddings.append(emb) # Dont take the average
+ 
+    return mean_embeddings

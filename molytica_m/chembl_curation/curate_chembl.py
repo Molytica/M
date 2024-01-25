@@ -611,7 +611,7 @@ def check_db_row_count(conn, id_to_smiles):
     row_count = c.fetchone()[0]
     return row_count == len(id_to_smiles)
 
-def pre_cache_molecule_embeddings():
+def pre_cache_molecule_embeddings_mean():
     with open("data/curated_chembl/molecule_id_mappings/id_to_smiles.json", 'r') as f:
         id_to_smiles = json.load(f)
 
@@ -700,6 +700,47 @@ def pre_cache_protein_embeddings(species_of_interest=None):
             output_file_name = os.path.join(species_folder, file.replace("sequence", "embedding"))
             seq = get_chembl_data.load_protein_sequence(uniprot_id)
             embed = protT5.calculate_mean_embeddings([seq], tokenizer, model, device)[0]  # Selecting the first embedding
+
+            # Move the tensor to CPU memory and convert it to a numpy array
+            embed_numpy = embed.cpu().numpy() if embed.is_cuda else embed.numpy()
+
+            # Save the embedding as a numpy array in h5 format
+            with h5py.File(output_file_name, 'w') as h5f:
+                h5f.create_dataset('embedding', data=embed_numpy)
+
+def pre_cache_protein_embeddings_full(species_of_interest=None):
+    species_to_iterate = species_of_interest if species_of_interest else os.listdir("data/curated_chembl/protein_sequences")
+    idx = -1
+
+    if os.path.exists("data/curated_chembl/protein_full_embeddings"):
+        if len(os.listdir("data/curated_chembl/protein_full_embeddings")) == len(species_to_iterate):
+            print("Protein embeddings already exist. Skipping...")
+            return
+    else:
+        os.makedirs("data/curated_chembl/protein_full_embeddings")
+
+    tokenizer, model, device = protT5.get_protT5_stuff()
+    for species in tqdm(species_to_iterate, desc="Generating all protein embeddings"):
+        idx += 1
+        species_folder = os.path.join("data/curated_chembl/protein_full_embeddings", species)
+
+        if os.path.exists(species_folder):
+            if not os.path.exists(os.path.join("data/curated_chembl/protein_full_embeddings", species_to_iterate[idx + 1])):
+                shutil.rmtree(species_folder)
+                os.makedirs(species_folder)
+                print(f"Recreating {species_folder}...")
+            else:
+                print(f"Protein embeddings for {species} already exist. Skipping...")
+                continue
+        
+        if not os.path.exists(species_folder):
+            os.makedirs(species_folder)
+
+        for file in tqdm(os.listdir(os.path.join("data/curated_chembl/protein_sequences", species)), desc="Generating spec. protein embeddings"):
+            uniprot_id = file.split("_")[0]
+            output_file_name = os.path.join(species_folder, file.replace("sequence", "embedding"))
+            seq = get_chembl_data.load_protein_sequence(uniprot_id)
+            embed = protT5.calculate_embeddings([seq], tokenizer, model, device)[0]  # Selecting the first embedding
 
             # Move the tensor to CPU memory and convert it to a numpy array
             embed_numpy = embed.cpu().numpy() if embed.is_cuda else embed.numpy()
@@ -1043,7 +1084,7 @@ def main():
 
     #id_mapping_tools.generate_index_dictionaries(raw_chembl_db_path)
 
-    download_alphafold_data(alphafold_folder_path)
+    #download_alphafold_data(alphafold_folder_path)
     #curate_raw_chembl(raw_chembl_db_path, curated_chembl_db_folder_path, new_db_name)
     #create_PROTEIN_graphs(alphafold_folder_path, protein_graph_output_path)
     #create_PROTEIN_metadata(target_protein_metadata_output_path)
@@ -1057,8 +1098,10 @@ def main():
     #create_SMILES_path_mappings(target_output_path)
     #convert_SMILES_to_coo(target_output_path)
     #create_proper_mol_index()
-    #pre_cache_protein_embeddings()
-    #pre_cache_molecule_embeddings()
+    #pre_cache_protein_embeddings_mean()
+    #pre_cache_molecule_embeddings_mean()
+
+    pre_cache_protein_embeddings_full(["HUMAN"])
 
 if __name__ == "__main__":
     main()
