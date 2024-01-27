@@ -8,6 +8,7 @@ from torch_geometric.data import Data
 from molytica_m.data_tools.graph_tools import graph_tools_pytorch
 from concurrent.futures import ProcessPoolExecutor
 from molytica_m.chembl_curation import curate_chembl
+import molytica_m.arch2.chemBERT as chemBERT
 
 def load_protein_graph(uniprot_id, fold_n=1):
     speciess = os.listdir(os.path.join("data", "curated_chembl", "af_protein_1_dot_5_angstrom_graphs"))
@@ -221,6 +222,33 @@ def categorize_inhibitor(ic50_nm):
     else:
         return "Weak or No Significant Inhibition", 0
 
+def get_categorised_data(seed=42):
+    rows = get_bioactivities()
+    modified_rows = []
+
+    for row in rows:
+        effect_type = None
+        num_cat = None
+        if row[2] == "IC50":
+            effect_type = -1
+            cat, num_cat = categorize_inhibitor(row[4])
+        elif row[2] == "EC50":
+            effect_type = 1
+            cat, num_cat = categorize_inhibitor(row[4]) # Assume this applies for EC50 as well
+        elif row[2] == "Ki":
+            effect_type = -1
+            cat, num_cat = categorize_inhibitor(row[4]) # Assume this applies for EC50 as well
+        
+        if effect_type is not None and num_cat is not None:
+            modulation_effect = num_cat * effect_type
+            new_row = list(row) + [modulation_effect]
+            modified_rows.append(new_row)  
+        
+
+    random.seed(seed)
+    random.shuffle(modified_rows)
+    
+    return modified_rows
 
 def get_categorised_CV_split():
     rows = get_bioactivities()
@@ -332,7 +360,7 @@ def add_molecule_descriptors(smiles): # Takes in a list of smiles
         c = conn.cursor()
         curate_chembl.add_mol_desc_to_db(smiles, mol_ids, batch_descriptors, c)
     
-    return batch_descriptors.values()
+    return batch_descriptors.values()    
 
 def load_protein_embedding(uniprot_id):
     for species in os.listdir(os.path.join("data", "curated_chembl", "protein_embeddings")):
@@ -369,6 +397,50 @@ def load_protein_metadata(uniprot_id):
     print(f"File not found for UniProt ID {uniprot_id}")
     return None
 
+def get_max_mol_id(db_path = os.path.join("data", "curated_chembl", "smiles_embeddings.db")):
+    with sqlite3.connect(db_path) as conn:
+        c = conn.cursor()
+        c.execute("SELECT MAX(mol_id) FROM molecule_embeddings")
+        max_mol_id = c.fetchone()[0]
+        if max_mol_id is None:
+            max_mol_id = 0
+    return max_mol_id
+
+def load_molecule_embedding(smiles): # This uses the db smiles_embeddings.db in the data/curated_chembl/ folder
+    with sqlite3.connect(os.path.join("data", "curated_chembl", "smiles_embeddings.db")) as conn:
+        c = conn.cursor()
+        # Define the SQL command to select the row
+        sql_command = "SELECT * FROM molecule_embeddings WHERE smiles = ?"
+        c.execute(sql_command, (smiles,))
+
+        # Fetch the result
+        result = c.fetchone()
+        if result is None:
+            print(f"generating molecule embedding for smiles {smiles}")
+            tok, mod = chemBERT.get_chemBERT_tok_mod()
+
+            embed = chemBERT.get_molecule_mean_logits(smiles, tok, mod)[0][0]  # Selecting the first embedding
+            embed_array = embed.cpu().numpy()
+            embed_list = embed_array.tolist()
+
+            # Define placeholders for mol_id, smiles, and 600 real values
+            placeholders = ', '.join(['?'] * (2 + len(embed_list)))  # 2 for mol_id and smiles, rest for embed values
+
+            # Define the SQL command for insertion
+            sql_command = f"INSERT OR REPLACE INTO molecule_embeddings VALUES ({placeholders})"
+
+            # Create the data tuple for insertion
+            db_max_mol_id = get_max_mol_id()
+            data_tuple = (db_max_mol_id + 1, smiles) + tuple(embed_list)
+
+            # Execute the SQL command
+            conn.execute(sql_command, data_tuple)
+            conn.commit()
+
+            return embed_list
+        else:
+            return result[2:]
+    return result
 
 if __name__ == "__main__": 
     # Load the data
@@ -409,4 +481,7 @@ if __name__ == "__main__":
     #folds = get_CV_split()
     #print(len(folds))
 
-    print(load_protein_embedding("K0EFJ8"))
+    #print(load_protein_embedding("K0EFJ8"))
+
+    print("starting")
+    print(load_molecule_embedding("CC(=O)OCCCC1=CC=CC=C1C(=O)O"))

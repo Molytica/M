@@ -669,6 +669,17 @@ def pre_cache_molecule_embeddings_mean():
                 # Execute the SQL command
                 conn.execute(sql_command, data_tuple)
 
+def load_smiles_embedding(smiles):
+    with sqlite3.connect("data/curated_chembl/smiles_embeddings.db") as conn:
+        query = "SELECT * FROM molecule_embeddings WHERE smiles = ?"
+        c = conn.cursor()
+        c.execute(query, (smiles,))
+        row = c.fetchone()
+        if row is None:
+            return None
+        else:
+            return row[2:]
+
 
 def pre_cache_protein_embeddings(species_of_interest=None):
     species_to_iterate = species_of_interest if species_of_interest else os.listdir("data/curated_chembl/protein_sequences")
@@ -708,14 +719,15 @@ def pre_cache_protein_embeddings(species_of_interest=None):
             with h5py.File(output_file_name, 'w') as h5f:
                 h5f.create_dataset('embedding', data=embed_numpy)
 
-def pre_cache_protein_embeddings_full(species_of_interest=None):
+def pre_cache_protein_embeddings_full(species_of_interest=None, check=False):
     species_to_iterate = species_of_interest if species_of_interest else os.listdir("data/curated_chembl/protein_sequences")
     idx = -1
 
     if os.path.exists("data/curated_chembl/protein_full_embeddings"):
         if len(os.listdir("data/curated_chembl/protein_full_embeddings")) == len(species_to_iterate):
-            print("Protein embeddings already exist. Skipping...")
-            return
+            if not check:
+                print("Protein embeddings already exist. Skipping...")
+                return
     else:
         os.makedirs("data/curated_chembl/protein_full_embeddings")
 
@@ -724,7 +736,7 @@ def pre_cache_protein_embeddings_full(species_of_interest=None):
         idx += 1
         species_folder = os.path.join("data/curated_chembl/protein_full_embeddings", species)
 
-        if os.path.exists(species_folder):
+        if os.path.exists(species_folder) and len(species_to_iterate) > 1:
             if not os.path.exists(os.path.join("data/curated_chembl/protein_full_embeddings", species_to_iterate[idx + 1])):
                 shutil.rmtree(species_folder)
                 os.makedirs(species_folder)
@@ -739,6 +751,19 @@ def pre_cache_protein_embeddings_full(species_of_interest=None):
         for file in tqdm(os.listdir(os.path.join("data/curated_chembl/protein_sequences", species)), desc="Generating spec. protein embeddings"):
             uniprot_id = file.split("_")[0]
             output_file_name = os.path.join(species_folder, file.replace("sequence", "embedding"))
+
+            if os.path.exists(output_file_name):
+                # Try loading the h5 file if it already exists
+                try:
+                    with h5py.File(output_file_name, 'r') as h5f:
+                        embed = h5f['embedding'][:]
+                    continue
+                except:
+                    print(f"Error loading {output_file_name}. Recreating...")
+                    # Remove if not able to load
+                    os.remove(output_file_name)
+                   
+
             seq = get_chembl_data.load_protein_sequence(uniprot_id)
             embed = protT5.calculate_embeddings([seq], tokenizer, model, device)[0]  # Selecting the first embedding
 
@@ -1101,7 +1126,7 @@ def main():
     #pre_cache_protein_embeddings_mean()
     #pre_cache_molecule_embeddings_mean()
 
-    pre_cache_protein_embeddings_full(["HUMAN"])
+    pre_cache_protein_embeddings_full(["HUMAN"], check=False)
 
 if __name__ == "__main__":
     main()
