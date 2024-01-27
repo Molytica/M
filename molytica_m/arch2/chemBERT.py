@@ -5,7 +5,9 @@ import numpy as np
 
 def get_chemBERT_tok_mod():
     # Check if GPU is available and set the device accordingly
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    #print("Using device:", "cuda" if torch.cuda.is_available() else "cpu")
+    device = torch.device("cpu")
 
     # Load tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained("DeepChem/ChemBERTa-77M-MLM")
