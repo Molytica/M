@@ -4,6 +4,8 @@ import random
 import os
 import h5py
 import numpy as np
+from molytica_m.data_tools import alpha_fold_tools
+import sys
 
 def plot_protein_point_cloud(species, protein_id):
     file_path = os.path.join("data/curated_chembl/opt_af_coords", species, protein_id + ".h5")
@@ -41,7 +43,22 @@ def select_random_protein(species):
     protein_id = random_protein_file.split('.')[0]
     return protein_id
 
+
+def get_sequence_lengths():
+    dims = []
+    for species in ["HUMAN"]:
+        for uniprot in alpha_fold_tools.get_all_alphafold_uniprot_ids()[species]:
+            file_path = os.path.join("data/curated_chembl/protein_full_embeddings", species, uniprot + "_embedding.h5")
+            with h5py.File(file_path, 'r') as h5file:
+                embedding = h5file['embedding'][:]
+            print(embedding.shape[0])
+            dims.append(embedding.shape[0])
+    
+    return dims
+
 if __name__ == "__main__":
+    max_length_get = max(get_sequence_lengths())
+    sys.exit(0)
     species = "HUMAN"  # You can choose from ["HUMAN", "RAT", "MOUSE", "YEAST"]
     protein_id = select_random_protein(species)
     plot_protein_point_cloud(species, protein_id)

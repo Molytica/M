@@ -8,6 +8,7 @@ def get_chemBERT_tok_mod():
     #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     #print("Using device:", "cuda" if torch.cuda.is_available() else "cpu")
     device = torch.device("cpu")
+    print("Using device in chembert script:", "cpu")
 
     # Load tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained("DeepChem/ChemBERTa-77M-MLM")
