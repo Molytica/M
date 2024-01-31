@@ -158,6 +158,18 @@ train_dataset, val_dataset = random_split(chembl_dataset, [train_size, val_size]
 train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=14)
 val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=14)
 
+def calculate_class_weights(dataset):
+    label_counts = {}
+    for _, _, _, _, _, _, label in dataset:
+        label_counts[label] = label_counts.get(label, 0) + 1
+
+    total_samples = len(dataset)
+    weights = [total_samples / label_counts[label] for label in sorted(label_counts)]
+    return torch.tensor(weights, dtype=torch.float32)
+
+class_weights = calculate_class_weights(dataset)
+class_weights = class_weights.to(device)
+print("Class Weights:", class_weights)
 
 class CustomTransformerLayer(nn.Module):
     def __init__(self, dim_model, dim_feedforward):
@@ -247,7 +259,7 @@ model.to(device)
 
 # Define loss function and optimizer
 # Use BCEWithLogitsLoss for one-hot encoded labels
-criterion = nn.CrossEntropyLoss()
+criterion = nn.CrossEntropyLoss(weight=class_weights)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop with progress bar and SMA counters
