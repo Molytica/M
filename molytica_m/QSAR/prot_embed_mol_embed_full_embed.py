@@ -204,7 +204,7 @@ class CustomTransformerLayer(nn.Module):
         return src
 
 class TransformerModel(nn.Module):
-    def __init__(self, input_dim, dim_feedforward, num_classes, num_layers=1):
+    def __init__(self, input_dim, dim_feedforward, num_classes, num_layers=2):
         super(TransformerModel, self).__init__()
         self.embedding = nn.Linear(input_dim, dim_feedforward)
         
@@ -267,7 +267,6 @@ num_epochs = 100  # Number of epochs
 sma_window = 20000//64  # Window size for SMA calculations
 val_max_acc = 0
 for epoch in range(num_epochs):
-    """
     model.train()
     train_loss_sma, train_accuracy_sma = [], []
     with tqdm(train_loader, unit="batch") as tepoch:
@@ -303,7 +302,6 @@ for epoch in range(num_epochs):
                 train_accuracy_sma.pop(0)
 
             tepoch.set_postfix(loss=np.mean(train_loss_sma), SMA_acc=np.mean(train_accuracy_sma))
-    """
 
     val_loss_sma, val_accuracy_sma = [], []
     model.eval()
