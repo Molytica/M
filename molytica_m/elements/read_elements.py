@@ -39,13 +39,14 @@ def get_electron_configuration_vector(electron_configuration_string):
 
     #print([valence_dict[key] for key in order])
 
-    return valence_dict
+    return [valence_dict[key] for key in order]
 
 
 def main():
     element_datas = {}
     max_len = 0
     max_conf = ""
+    vectors = {}
 
     with open("molytica_m/elements/PeriodicTableJSON.json", "r") as f:
         elements_json = json.load(f)
@@ -58,16 +59,27 @@ def main():
         element_properties["group"] = element["group"]
         element_properties["atomic_mass"] = element["atomic_mass"]
         element_properties["electron_affinity"] = element["electron_affinity"]
+        element_properties["electronegativity_pauling"] = element["electronegativity_pauling"]
         element_properties["electron_configuration_vector"] = get_electron_configuration_vector(element["electron_configuration"])
 
-        if len(element_properties["electron_configuration"]) > max_len:
-            max_len = len(element_properties["electron_configuration"])
-            max_conf = element_properties["electron_configuration"]
+        element_properties["total_vector_fingerprint"] = [element["period"], element["group"], element["atomic_mass"], element["electron_affinity"], element["electronegativity_pauling"]] + element_properties["electron_configuration_vector"]
+
+        print(element_properties["total_vector_fingerprint"])
+
+        vectors[element["symbol"]] = element_properties["total_vector_fingerprint"]
+
+        if len(element["electron_configuration"]) > max_len:
+            max_len = len(element["electron_configuration"])
+            max_conf = element["electron_configuration"]
 
         element_datas[element["symbol"]] = element_properties
 
     #print(element_datas)
-    print(max_conf)
+    #print(max_conf)
+        
+    # save the vector as json
+    with open('molytica_m/elements/element_vectors.json', 'w') as fp:
+        json.dump(vectors, fp)
 
 
 if __name__ == "__main__":
