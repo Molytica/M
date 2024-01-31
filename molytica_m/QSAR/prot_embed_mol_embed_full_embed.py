@@ -259,7 +259,7 @@ model.to(device)
 
 # Define loss function and optimizer
 # Use BCEWithLogitsLoss for one-hot encoded labels
-criterion = nn.CrossEntropyLoss(weight=class_weights)
+criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop with progress bar and SMA counters
@@ -267,6 +267,7 @@ num_epochs = 100  # Number of epochs
 sma_window = 20000//64  # Window size for SMA calculations
 val_max_acc = 0
 for epoch in range(num_epochs):
+    """
     model.train()
     train_loss_sma, train_accuracy_sma = [], []
     with tqdm(train_loader, unit="batch") as tepoch:
@@ -302,6 +303,7 @@ for epoch in range(num_epochs):
                 train_accuracy_sma.pop(0)
 
             tepoch.set_postfix(loss=np.mean(train_loss_sma), SMA_acc=np.mean(train_accuracy_sma))
+    """
 
     val_loss_sma, val_accuracy_sma = [], []
     model.eval()
@@ -318,8 +320,6 @@ for epoch in range(num_epochs):
 
                 # Compute loss
                 loss = criterion(output, target_classes)  # target_classes are class indices
-                loss.backward()
-                optimizer.step()
 
                 # Get the predicted class as the index of the maximum value in each row
                 _, predicted_classes = torch.max(output, 1)
