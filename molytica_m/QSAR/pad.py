@@ -82,12 +82,37 @@ dataset = random.sample(dataset, int(float(len(dataset)) * 1))  # Shuffling the 
 device = torch.device("cpu")
 print(f"Device in qsar is {device}")
 
+
+def pad_emb(embedding, target_length=512, embedding_dim=600):
+    """
+    Pad the molecule embedding to a fixed size (target_length, embedding_dim).
+
+    Parameters:
+    embedding (np.array): The original embedding array of shape (n, 600), where n <= target_length.
+    target_length (int, optional): The target length of the sequence. Default is 512.
+    embedding_dim (int, optional): The dimension of each embedding vector. Default is 600.
+
+    Returns:
+    np.array: A new array of shape (target_length, embedding_dim) with padded zeros if needed.
+    """
+    # Calculate the number of rows to pad
+    padding_length = max(0, target_length - embedding.shape[0])
+    
+    # Create a padding array of zeros
+    padding = np.zeros((padding_length, embedding_dim))
+    
+    # Concatenate the original embedding with the padding array
+    padded_embedding = np.vstack((embedding, padding))
+    
+    return padded_embedding
+
+
 def save_mol_embeds_to_h5py(dataset, start_id=0):
     folder_count = 0
     folder_row_count = 0
     total_count = 0
 
-    for row in tqdm(dataset, "converting to h5"):
+    for row in tqdm(dataset, "Padding full molecule embeddings"):
         total_count += 1
         folder_row_count += 1
         smiles = row[0]
@@ -96,24 +121,19 @@ def save_mol_embeds_to_h5py(dataset, start_id=0):
         if inchi_key is None:
             continue
 
-        if not os.path.exists(f"data/curated_chembl/full_mol_embeds/{folder_count}/{inchi_key}.h5") and total_count >= start_id:
-            molecule_emb = load_molecule_embedding(smiles)
-            if not os.path.exists(f"data/curated_chembl/full_mol_embeds/{folder_count}"):
-                os.makedirs(f"data/curated_chembl/full_mol_embeds/{folder_count}")
+        with h5py.File(f"data/curated_chembl/full_mol_embeds/{folder_count}/{inchi_key}.h5", "r") as f:
+            full_mol_emb = f["full_mol_embed"][:]
 
-            with h5py.File(f"data/curated_chembl/full_mol_embeds/{folder_count}/{inchi_key}.h5", "w") as f:
-                f.create_dataset("full_mol_embed", data=molecule_emb)
-        else:
-            try:
-                with h5py.File(f"data/curated_chembl/full_mol_embeds/{folder_count}/{inchi_key}.h5", "r") as f:
-                    read_file = f["full_mol_embed"][:]
-                #print(read_file)
-            except:
-                print("File corrupted, overwriting")
-                molecule_emb = load_molecule_embedding(smiles)
-                with h5py.File(f"data/curated_chembl/full_mol_embeds/{folder_count}/{inchi_key}.h5", "w") as f:
-                    f.create_dataset("full_mol_embed", data=molecule_emb)
 
+        output_path = os.path.join("data/curated_chembl/pad_full_mol_embeds", str(folder_count), f"{inchi_key}.h5")
+        if not os.path.exists(os.path.dirname(output_path)):
+            os.makedirs(os.path.dirname(output_path))
+
+        with h5py.File(f"data/curated_chembl/pad_full_mol_embeds/{folder_count}/{inchi_key}.h5", "w") as f:
+            # Pad the embedding from (x, 600) to (512, 600)
+            padded_emb = pad_emb(full_mol_emb)
+            f.create_dataset("full_mol_embed", data=padded_emb)
+            print(padded_emb.shape)
 
         if folder_row_count % 100000 == 0:
             folder_count += 1

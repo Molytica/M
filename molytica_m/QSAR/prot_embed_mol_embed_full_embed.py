@@ -42,7 +42,20 @@ def get_mol_embed(smiles):
         for folder in os.listdir("data/curated_chembl/mol_embeds"):
             if os.path.exists(f"data/curated_chembl/mol_embeds/{folder}/{inchi_key}.h5"):
                 with h5py.File(f"data/curated_chembl/mol_embeds/{folder}/{inchi_key}.h5", "r") as f:
-                    return f["mol_mean_embed"][:]
+                    embed = f["mol_mean_embed"][:]
+                    if len(embed) != 600:
+                        print(f"Embedding for {smiles} is of length {len(embed)}")
+                    return embed
+    print(f"Could not find smiles {smiles} in mol_embeds")
+    return None
+
+def get_full_mol_embed(smiles):
+    inchi_key = smiles_to_inchikey(smiles)
+    if inchi_key is not None:
+        for folder in os.listdir("data/curated_chembl/full_mol_embeds"):
+            if os.path.exists(f"data/curated_chembl/full_mol_embeds/{folder}/{inchi_key}.h5"):
+                with h5py.File(f"data/curated_chembl/full_mol_embeds/{folder}/{inchi_key}.h5", "r") as f:
+                    return f["full_mol_embed"][:]
     return None
 
 def get_dataset():
@@ -107,54 +120,6 @@ dataset = random.sample(dataset, int(float(len(dataset)) * 1))  # Shuffling the 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print("Using device in qsar:", "cuda" if torch.cuda.is_available() else "cpu")
 
-# Prepare the data
-def prepare_data(dataset):
-    X, Y = [], []
-    for row in tqdm(dataset, desc="Loading Dataset"):
-        smiles, uniprot_id, _, _, _, _, label = row
-        molecule_emb = load_molecule_embedding(smiles)
-        protein_emb = load_protein_embed(uniprot_id)
-        combined_emb = np.concatenate((molecule_emb, protein_emb, [0, 1])) # binary marker for molecule and protein
-        X.append(combined_emb)
-        Y.append(get_one_hot_label(label))
-    return torch.tensor(X, dtype=torch.float32), torch.tensor(Y, dtype=torch.float32)
-
-def save_mol_embeds_to_h5py(dataset):
-    folder_count = 0
-    folder_row_count = 0
-
-    for row in tqdm(dataset, "converting to h5"):
-        folder_row_count += 1
-        smiles = row[0]
-        inchi_key = smiles_to_inchikey(smiles)
-
-        if inchi_key is None:
-            continue
-
-        if not os.path.exists(f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}.h5"):
-            molecule_emb = get_chembl_data.gen_molecule_embedding(smiles)
-            if not os.path.exists(f"data/curated_chembl/mol_embeds/{folder_count}"):
-                os.makedirs(f"data/curated_chembl/mol_embeds/{folder_count}")
-
-            with h5py.File(f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}.h5", "w") as f:
-                f.create_dataset("mol_mean_embed", data=molecule_emb)
-        else:
-            try:
-                # Read the file to make sure it is intact:
-                with h5py.File(f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}.h5", "r") as f:
-                    f["mol_mean_embed"][:]
-            except Exception as e:
-                print("File is corrupted, overwriting...")
-                molecule_emb = get_chembl_data.gen_molecule_embedding(smiles)
-                with h5py.File(f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}.h5", "w") as f:
-                    f.create_dataset("mol_mean_embed", data=molecule_emb)
-
-
-        if folder_row_count % 100000 == 0:
-            folder_count += 1
-            folder_row_count = 0
-
-
 dataset = get_dataset()
 """
 save_mol_embeds_to_h5py(dataset)
@@ -174,9 +139,8 @@ class ChEMBLDataset(Dataset):
         molecule_emb = get_mol_embed(smiles)
         protein_emb = get_full_prot_embed(uniprot_id)
         
-        # Flatten the protein embedding from (512, 1024) to (512 * 1024,)
         protein_emb_flat = protein_emb.flatten()
-        
+
         combined_emb = np.concatenate((molecule_emb, protein_emb_flat))
         one_hot_label = get_one_hot_label(label)
         return torch.tensor(combined_emb, dtype=torch.float32), torch.tensor(one_hot_label, dtype=torch.float32)
@@ -262,14 +226,16 @@ class TransformerModel(nn.Module):
         # Apply the output layer
         x = self.output_layer(x)
         
-        return torch.softmax(x, dim=1)
+        # Removed softmax activation
+        return x  # Return raw logits
 
-input_dim = 1024*512 + 600  # Assuming 1024x512 for protein, 600 for molecule
+
+input_dim = 1024 * 512 + 600  # Assuming 1024x512 for protein, 600 for molecule
 
 # Update the dimensions of the feedforward layers
 dim_feedforward = 512  # Adjust this based on your requirements
 num_classes = 7  # Number of classes for the output layer
-num_layers = 1  # Number of transformer layers
+num_layers = 2  # Number of transformer layers
 
 # Initialize the model
 model = TransformerModel(input_dim=input_dim, 
@@ -280,6 +246,7 @@ model = TransformerModel(input_dim=input_dim,
 model.to(device)
 
 # Define loss function and optimizer
+# Use BCEWithLogitsLoss for one-hot encoded labels
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
@@ -298,13 +265,24 @@ for epoch in range(num_epochs):
 
             optimizer.zero_grad()
             output = model(data)
-            loss = criterion(output, target.argmax(dim=1))
+
+            # Convert one-hot encoded targets to class indices for CrossEntropyLoss
+            _, target_classes = torch.max(target, 1)
+
+            # Compute loss
+            loss = criterion(output, target_classes)  # target_classes are class indices
             loss.backward()
             optimizer.step()
 
+            # Get the predicted class as the index of the maximum value in each row
+            _, predicted_classes = torch.max(output, 1)
+
+            # Calculate accuracy as the mean of correct predictions
+            correct = (predicted_classes == target_classes).float().mean()
+            train_accuracy_sma.append(correct.item())
+
+            # Append the loss
             train_loss_sma.append(loss.item())
-            correct = (output.argmax(dim=1) == target.argmax(dim=1)).float().mean().item()
-            train_accuracy_sma.append(correct)
 
             if len(train_loss_sma) > sma_window:
                 train_loss_sma.pop(0)
@@ -323,12 +301,25 @@ for epoch in range(num_epochs):
 
             with torch.no_grad():
                 output = model(data)
-                val_loss = criterion(output, target.argmax(dim=1))
+                # Convert one-hot encoded targets to class indices for CrossEntropyLoss
+                _, target_classes = torch.max(target, 1)
 
-                val_loss_sma.append(val_loss.item())
-                correct = (output.argmax(dim=1) == target.argmax(dim=1)).float().mean().item()
-                val_accuracy_sma.append(correct)
+                # Compute loss
+                loss = criterion(output, target_classes)  # target_classes are class indices
+                loss.backward()
+                optimizer.step()
 
+                # Get the predicted class as the index of the maximum value in each row
+                _, predicted_classes = torch.max(output, 1)
+
+                # Calculate accuracy as the mean of correct predictions
+                correct = (predicted_classes == target_classes).float().mean()
+                val_accuracy_sma.append(correct.item())
+
+                # Append the loss
+                val_loss_sma.append(loss.item())
+
+                # Manage SMA window
                 if len(val_loss_sma) > sma_window:
                     val_loss_sma.pop(0)
                 if len(val_accuracy_sma) > sma_window:
