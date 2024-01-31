@@ -1,0 +1,12 @@
+conda activate M && python molytica_m/QSAR/start_id.py 0
+conda activate M && python molytica_m/QSAR/start_id.py 94670
+conda activate M && python molytica_m/QSAR/start_id.py 189340
+conda activate M && python molytica_m/QSAR/start_id.py 284010
+conda activate M && python molytica_m/QSAR/start_id.py 378680
+conda activate M && python molytica_m/QSAR/start_id.py 473350
+conda activate M && python molytica_m/QSAR/start_id.py 568020
+conda activate M && python molytica_m/QSAR/start_id.py 662690
+conda activate M && python molytica_m/QSAR/start_id.py 757360
+conda activate M && python molytica_m/QSAR/start_id.py 852030
+conda activate M && python molytica_m/QSAR/start_id.py 946700
+conda activate M && python molytica_m/QSAR/start_id.py 1041370

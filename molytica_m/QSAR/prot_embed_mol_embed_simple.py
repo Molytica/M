@@ -17,6 +17,13 @@ import h5py
 import sys
 import os
 
+
+def get_full_prot_embed(uniprot_id): # 1024 dim vector
+    embed_path = "data/curated_chembl/padded_protein_full_embeddings/HUMAN/" + uniprot_id + "_embedding.h5"
+    
+    with h5py.File(embed_path, "r") as f:
+        return f['embedding'][:]
+
 def load_protein_embed(uniprot_id): # 1024 dim vector
     return get_chembl_data.load_protein_embedding(uniprot_id)
 
@@ -28,6 +35,15 @@ def load_molecule_embedding(smiles): # 600 dim vector'
                 with h5py.File(f"data/curated_chembl/mole_embeds/{folder}/{inchi_key}.h5", "r") as f:
                     return f[inchi_key][:]
     return get_chembl_data.load_molecule_embedding(smiles)
+
+def get_mol_embed(smiles):
+    inchi_key = smiles_to_inchikey(smiles)
+    if inchi_key is not None:
+        for folder in os.listdir("data/curated_chembl/mol_embeds"):
+            if os.path.exists(f"data/curated_chembl/mol_embeds/{folder}/{inchi_key}.h5"):
+                with h5py.File(f"data/curated_chembl/mol_embeds/{folder}/{inchi_key}.h5", "r") as f:
+                    return f["mol_mean_embed"][:]
+    return None
 
 def get_dataset():
     return get_chembl_data.get_categorised_data()
@@ -115,65 +131,35 @@ def save_mol_embeds_to_h5py(dataset):
         if inchi_key is None:
             continue
 
-        if not os.path.exists(f"data/curated_chembl/mole_embeds/{folder_count}/{inchi_key}.h5"):
-            molecule_emb = load_molecule_embedding(smiles)
-            if not os.path.exists(f"data/curated_chembl/mole_embeds/{folder_count}"):
-                os.makedirs(f"data/curated_chembl/mole_embeds/{folder_count}")
+        if not os.path.exists(f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}.h5"):
+            molecule_emb = get_chembl_data.gen_molecule_embedding(smiles)
+            if not os.path.exists(f"data/curated_chembl/mol_embeds/{folder_count}"):
+                os.makedirs(f"data/curated_chembl/mol_embeds/{folder_count}")
 
-            with h5py.File(f"data/curated_chembl/mole_embeds/{folder_count}/{inchi_key}.h5", "a") as f:
-                f.create_dataset(inchi_key, data=molecule_emb)
+            with h5py.File(f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}.h5", "w") as f:
+                f.create_dataset("mol_mean_embed", data=molecule_emb)
+        else:
+            try:
+                # Read the file to make sure it is intact:
+                with h5py.File(f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}.h5", "r") as f:
+                    f["mol_mean_embed"][:]
+            except Exception as e:
+                print("File is corrupted, overwriting...")
+                molecule_emb = get_chembl_data.gen_molecule_embedding(smiles)
+                with h5py.File(f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}.h5", "w") as f:
+                    f.create_dataset("mol_mean_embed", data=molecule_emb)
+
 
         if folder_row_count % 100000 == 0:
             folder_count += 1
             folder_row_count = 0
 
-def save_mol_embeds_to_h5py_parallel_helper(args):
-    smiles, file_name, tok, mod = args
-    molecule_emb = chemBERT.get_molecule_mean_logits(smiles, tok, mod)
-
-    with h5py.File(file_name, "a") as f:
-        f.create_dataset("mol_mean_logits", data=molecule_emb)
-
-
-def save_mol_embeds_to_h5py_parallel(dataset):
-    folder_count = 0
-    folder_row_count = 0
-
-    args = []
-    batch_size = 10
-    tok_mods = []
-
-    for x in tqdm(range(batch_size), desc="Loading ChemBERT models"):
-        tok_mods.append(chemBERT.get_chemBERT_tok_mod())
-
-    for row in tqdm(dataset, "Preparing args"):
-        folder_row_count += 1
-        smiles = row[0]
-        inchi_key = smiles_to_inchikey(smiles)
-
-        if inchi_key is None:
-            continue
-        
-        file_name = f"data/curated_chembl/mole_embeds/{folder_count}/{inchi_key}.h5"
-        if not os.path.exists(f"data/curated_chembl/mole_embeds/{folder_count}"):
-                os.makedirs(f"data/curated_chembl/mole_embeds/{folder_count}")
-
-
-        args.append((smiles, file_name, tok_mods[len(args) - 1][0], tok_mods[len(args) - 1][1]))
-
-        if folder_row_count % 100000 == 0:
-            folder_count += 1
-            folder_row_count = 0
-        
-        if len(args) > batch_size: # Batch size 1000
-            with ProcessPoolExecutor(max_workers=14) as executor:
-                # Tqdm
-                list(tqdm(executor.map(save_mol_embeds_to_h5py_parallel_helper, args), desc="Processing Batch", total=len(args)))
-            args = []
 
 dataset = get_dataset()
+"""
 save_mol_embeds_to_h5py(dataset)
 sys.exit(0)
+"""
 
 class ChEMBLDataset(Dataset):
     def __init__(self, dataset):
@@ -185,9 +171,9 @@ class ChEMBLDataset(Dataset):
     def __getitem__(self, idx):
         row = self.dataset[idx]
         smiles, uniprot_id, _, _, _, _, label = row
-        molecule_emb = load_molecule_embedding(smiles)
+        molecule_emb = get_mol_embed(smiles)
         protein_emb = load_protein_embed(uniprot_id)
-        combined_emb = np.concatenate((molecule_emb, protein_emb, [0, 1])) # binary marker for molecule and protein
+        combined_emb = np.concatenate((molecule_emb, protein_emb))
         one_hot_label = get_one_hot_label(label)
         return torch.tensor(combined_emb, dtype=torch.float32), torch.tensor(one_hot_label, dtype=torch.float32)
 
@@ -205,21 +191,87 @@ train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_worker
 val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=14)
 
 
-# Define the model
-class FeedForwardModel(nn.Module):
-    def __init__(self):
-        super(FeedForwardModel, self).__init__()
-        self.fc1 = nn.Linear(1626, 512) # 1624 dims input + 1 binary marker
-        self.fc2 = nn.Linear(512, 128)
-        self.fc3 = nn.Linear(128, 7) # 7 classes
+class CustomTransformerLayer(nn.Module):
+    def __init__(self, dim_model, dim_feedforward):
+        super(CustomTransformerLayer, self).__init__()
+        # Define multi-head attention mechanisms with different numbers of heads
+        self.attention1 = nn.MultiheadAttention(dim_model, 4)
+        
+        self.norm1 = nn.LayerNorm(dim_model)
+        self.norm2 = nn.LayerNorm(dim_model)
+        
+        # Define feed-forward networks for each attention mechanism
+        self.feed_forward1 = nn.Sequential(
+            nn.Linear(dim_model, dim_feedforward),
+            nn.ReLU(),
+            nn.Linear(dim_feedforward, dim_model)
+        )
+        
+        # Add 50% dropout layer
+        self.dropout = nn.Dropout(0.5)
+
+    def forward(self, src):
+        src2 = self.norm1(src)
+        attn_output, _ = self.attention1(src2, src2, src2)
+        src = src + attn_output
+        src = self.norm2(src)
+        
+        # Apply 50% dropout after the attention mechanism
+        src = self.dropout(src)
+        
+        src = src + self.feed_forward1(src)
+        
+        return src
+
+class TransformerModel(nn.Module):
+    def __init__(self, input_dim, dim_feedforward, num_classes, num_layers=1):
+        super(TransformerModel, self).__init__()
+        self.embedding = nn.Linear(input_dim, dim_feedforward)
+        
+        self.layers = nn.ModuleList([
+            CustomTransformerLayer(dim_feedforward, dim_feedforward)
+            for _ in range(num_layers)
+        ])
+        
+        # Define the feedforward layers
+        self.feed_forward_layers = nn.ModuleList([
+            nn.Sequential(
+                nn.Linear(dim_feedforward, dim_feedforward),
+                nn.ReLU(),
+            )
+            for _ in range(3)  # Number of feedforward layers
+        ])
+        
+        # Output layer
+        self.output_layer = nn.Linear(dim_feedforward, num_classes)
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
+        x = self.embedding(x)
+        
+        for layer in self.layers:
+            x = layer(x)
+        
+        # Apply the feedforward layers
+        for feed_forward_layer in self.feed_forward_layers:
+            x = feed_forward_layer(x)
+        
+        # Apply the output layer
+        x = self.output_layer(x)
+        
         return torch.softmax(x, dim=1)
 
-model = FeedForwardModel()
+input_dim = 1024 + 600  # Assuming 1024 for protein, 600 for molecule, and 2 for binary markers
+
+# Update the dimensions of the feedforward layers
+dim_feedforward = 512  # Adjust this based on your requirements
+num_classes = 7  # Number of classes for the output layer
+num_layers = 1  # Number of transformer layers
+
+# Initialize the model
+model = TransformerModel(input_dim=input_dim, 
+                         dim_feedforward=dim_feedforward, 
+                         num_classes=num_classes, 
+                         num_layers=num_layers)
 
 model.to(device)
 
@@ -228,8 +280,8 @@ criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop with progress bar and SMA counters
-num_epochs = 1  # Number of epochs
-sma_window = 20000  # Window size for SMA calculations
+num_epochs = 100  # Number of epochs
+sma_window = 20000//64  # Window size for SMA calculations
 val_max_acc = 0
 for epoch in range(num_epochs):
     model.train()
@@ -283,5 +335,5 @@ for epoch in range(num_epochs):
     avg_val_acc = np.mean(val_accuracy_sma)
     if avg_val_acc > val_max_acc:
         print(f"New best validation accuracy: {avg_val_acc:.4f}, saving model.")
-        torch.save(model, 'feed_forward_full_model.pth')  # Save the entire model
+        torch.save(model, 'molytica_m/QSAR/TransQSAR1.pth')  # Save the entire model
         val_max_acc = avg_val_acc

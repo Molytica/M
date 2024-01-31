@@ -408,6 +408,25 @@ def get_max_mol_id(db_path = os.path.join("data", "curated_chembl", "smiles_embe
 
 tok, mod = chemBERT.get_chemBERT_tok_mod()
 
+
+def gen_molecule_embedding(smiles): # This uses the db smiles_embeddings.db in the data/curated_chembl/ folder
+    print(f"generating molecule embedding for smiles {smiles}")
+
+    embed = chemBERT.get_molecule_mean_logits(smiles, tok, mod)[0][0]  # Selecting the first embedding
+    embed_array = embed.cpu().numpy()
+    embed_list = embed_array.tolist()
+
+    return tuple(embed_list)
+
+def gen_full_molecule_embedding(smiles): # This uses the db smiles_embeddings.db in the data/curated_chembl/ folder
+    print(f"generating molecule embedding for smiles {smiles}")
+
+    embed = chemBERT.get_molecule_logits(smiles, tok, mod)[0][0]  # Selecting the first embedding
+    embed_array = embed.cpu().numpy()
+    embed_list = embed_array.tolist()
+
+    return tuple(embed_list)
+
 def load_molecule_embedding(smiles): # This uses the db smiles_embeddings.db in the data/curated_chembl/ folder
     with sqlite3.connect(os.path.join("data", "curated_chembl", "smiles_embeddings.db")) as conn:
         c = conn.cursor()

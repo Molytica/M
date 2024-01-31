@@ -7,21 +7,25 @@ import os
 import h5py
 from rdkit import Chem
 from rdkit.Chem import inchi
+from multiprocessing import Process, Lock
 import json
 
-def get_chemBERT_tok_mod():
+def get_chemBERT_tok_mod(device="cpu"):
     # Check if GPU is available and set the device accordingly
     #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     #print("Using device:", "cuda" if torch.cuda.is_available() else "cpu")
-    device = torch.device("cpu")
-    print("Using device in chembert script:", "cpu")
+    if device == "cpu":
+        device = torch.device("cpu")
+    else:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        print("Using device:", "cuda" if torch.cuda.is_available() else "cpu")
+    #print("Using device in chembert script:", "cpu")
 
     # Load tokenizer and model
     tokenizer = AutoTokenizer.from_pretrained("DeepChem/ChemBERTa-77M-MLM")
     model = AutoModelForMaskedLM.from_pretrained("DeepChem/ChemBERTa-77M-MLM")
-
-    # Move model to the GPU if available
     model.to(device)
+    model.share_memory()
 
     return tokenizer, model
 
@@ -34,6 +38,17 @@ def get_molecule_mean_logits(smiles, tokenizer, model):
 
         # Perform inference with the model
         outputs = model(**inputs).logits.mean(dim=1, keepdim=True)
+
+        return outputs
+    
+def get_molecule_logits(smiles, tokenizer, model):
+    smiles_input = smiles[:512]
+    # Tokenize the input SMILES string
+    with torch.no_grad():
+        inputs = tokenizer(smiles_input, return_tensors="pt").to(model.device)
+
+        # Perform inference with the model without taking the mean
+        outputs = model(**inputs).logits
 
         return outputs
 
@@ -66,23 +81,8 @@ def process(input_smiles):
     print(shape_1[0][0].shape)
     print("Done with process")
 
-def save_mol_embeds_to_h5py_parallel_helper(args):
-    print("Starting helper")
-    smiles, file_name, skip_if_exists = args
-    print(f"Smiles {smiles}")
-    print(f"File name {file_name}")
-    print(f"Skip if exists {skip_if_exists}")
-    if os.path.exists(file_name) and skip_if_exists:
-        return
 
-    tok, mod = get_chemBERT_tok_mod()
-    molecule_emb = get_molecule_mean_logits(smiles, tok, mod)[0][0]
-    print(molecule_emb.shape)
-
-    print("Saving...")
-    with h5py.File(file_name, "w") as f:
-        f.create_dataset("mol_mean_logits", data=molecule_emb)
-    print("Helper Finished")
+tok, mod = get_chemBERT_tok_mod()
 
 def smiles_to_inchikey(smiles):
     try:
@@ -99,7 +99,7 @@ def smiles_to_inchikey(smiles):
 
 
 def get_dataset():
-    with open("molytica_m/chembl_curation/chembl_data.json", "r") as f:
+    with open("data/curated_chembl/chembl_data.json", "r") as f:
         # Save data_set as json
         data_set = json.load(f)["data"]
 
@@ -112,37 +112,36 @@ def get_args(dataset, fraq = 1.0):
 
     args = []
 
-    for row in tqdm(dataset, "Preparing args"):
-        folder_row_count += 1
-        smiles = row[0]
-        inchi_key = smiles_to_inchikey(smiles)
+    if os.path.exists("data/curated_chembl/mol_embed_args.json"):
+        with open("data/curated_chembl/mol_embed_args.json", "r") as f:
+            args = json.load(f)["args"]
+            return list(args)
+    
+    else:
+        for row in tqdm(dataset, "Preparing args"):
+            folder_row_count += 1
+            smiles = row[0]
+            inchi_key = smiles_to_inchikey(smiles)
 
-        if inchi_key is None:
-            continue
-        
-        file_name = f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}.h5"
-        if not os.path.exists(f"data/curated_chembl/mol_embeds/{folder_count}"):
-                os.makedirs(f"data/curated_chembl/mol_embeds/{folder_count}")
+            if inchi_key is None:
+                continue
+            
+            file_name = f"data/curated_chembl/mol_embeds/{folder_count}/{inchi_key}_{folder_row_count}.h5"
+            if not os.path.exists(f"data/curated_chembl/mol_embeds/{folder_count}"):
+                    os.makedirs(f"data/curated_chembl/mol_embeds/{folder_count}")
 
-        if folder_row_count % 100000 == 0:
-            folder_count += 1
-            folder_row_count = 0
-        
-        args.append((smiles, file_name, False))
+            if folder_row_count % 100000 == 0:
+                folder_count += 1
+                folder_row_count = 0
+            
+            args.append((smiles, file_name, False))
 
-        if len(args) > int(len(dataset) * fraq):
-            break
+            if len(args) > int(len(dataset) * fraq):
+                break
 
-    return list(args)
+        with open("data/curated_chembl/mol_embed_args.json", "w") as f:
+            json.dump({"args": args}, f)
 
-def convert_SMILES_to_embed_h5():
-    dataset = get_dataset()
-    args = get_args(dataset, fraq=1)
+        return get_args(dataset, fraq=fraq)
 
-    with multiprocessing.Pool(processes=20) as pool:
-        list(tqdm(pool.imap(save_mol_embeds_to_h5py_parallel_helper, args), total=len(args)))
-
-
-if __name__ == "__main__":
-    convert_SMILES_to_embed_h5()
     
