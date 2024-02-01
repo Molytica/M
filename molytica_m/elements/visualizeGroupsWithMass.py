@@ -1,7 +1,6 @@
 import json
 import torch
-import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
+import plotly.graph_objects as go
 from molytica_m.elements.vae import VariationalAutoencoder
 
 # Load the trained model
@@ -72,21 +71,34 @@ group_colors = {
     'Other': 'black'
 }
 
-# Prepare the 3D scatter plot
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
+# Prepare data for the Plotly 3D scatter plot
+scatter_data = []
+size_factor = 0.07
+text_font = dict(family="Arial, sans-serif", size=12, color="black")  # Example text styling
 
-# Adjust the size of the scatter plot dots based on atomic mass
-size_factor = 0.2 # Adjust this factor to scale the sizes appropriately
 for embedding, label in latent_space_embeddings:
     group = find_group(label)
     color = group_colors[group]
     size = atomic_masses[label] * size_factor
-    ax.scatter(embedding[0], embedding[1], embedding[2], color=color, s=size)
-    ax.text(embedding[0], embedding[1], embedding[2], '%s' % label, size=10, zorder=1)
+    scatter_data.append(go.Scatter3d(
+        x=[embedding[0]],
+        y=[embedding[1]],
+        z=[embedding[2]],
+        mode='markers+text',
+        marker=dict(size=size, color=color),
+        text=label,
+        textposition="bottom center",
+        textfont=text_font
+    ))
 
-ax.set_xlabel('Latent Dim 1')
-ax.set_ylabel('Latent Dim 2')
-ax.set_zlabel('Latent Dim 3')
+# Create the 3D scatter plot
+fig = go.Figure(data=scatter_data)
+fig.update_layout(
+    scene=dict(
+        xaxis_title='Latent Dim 1',
+        yaxis_title='Latent Dim 2',
+        zaxis_title='Latent Dim 3'
+    )
+)
 
-plt.show()
+fig.show()
