@@ -118,7 +118,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     # Training loop
-    num_epochs = 100000
+    num_epochs = 300000
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     print(f'Test loss: {test_loss / len(test_loader.dataset)}')
 
     # save the full model
-    torch.save(model, 'molytica_m/elements/vae.pth')
+    torch.save(model, 'molytica_m/elements/vae_6D.pth')
 
     # Example of using the model for inference
     with torch.no_grad():
