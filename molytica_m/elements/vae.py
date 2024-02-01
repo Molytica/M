@@ -8,6 +8,31 @@ from sklearn.model_selection import train_test_split
 with open("molytica_m/elements/element_vectors.json", "r") as f:
     atom_data = json.load(f)
 
+# Calculate means for each feature, excluding None
+feature_sums = [0] * len(next(iter(atom_data.values())))
+counts = [0] * len(feature_sums)
+
+for key in atom_data:
+    for i, value in enumerate(atom_data[key]):
+        if value is not None:
+            feature_sums[i] += value
+            counts[i] += 1
+
+means = [feature_sum / count if count > 0 else 0 for feature_sum, count in zip(feature_sums, counts)]
+
+# Replace None with mean values
+for key in atom_data:
+    atom_data[key] = [value if value is not None else means[i] for i, value in enumerate(atom_data[key])]
+
+# Find max and min values for each feature
+max_values = [max(filter(lambda v: v is not None, (atom_data[key][i] for key in atom_data))) for i in range(len(feature_sums))]
+min_values = [min(filter(lambda v: v is not None, (atom_data[key][i] for key in atom_data))) for i in range(len(feature_sums))]
+
+# Scale data to range [0, 1]
+for key in atom_data:
+    atom_data[key] = [(value - min_values[i]) / (max_values[i] - min_values[i]) if value is not None else (means[i] - min_values[i]) / (max_values[i] - min_values[i]) for i, value in enumerate(atom_data[key])]
+
+# Remaining code is unchanged
 # Create a list of all unique labels
 all_labels = sorted(set(atom_data.keys()))
 label_to_index = {label: idx for idx, label in enumerate(all_labels)}
@@ -83,13 +108,13 @@ def vae_loss_function(recon_x, x, mu, logvar):
 # Model parameters
 input_dim = len(train_data[0][0])  # Size of atom vector
 hidden_dim = 50
-latent_dim = 20
+latent_dim = 4
 
 model = VariationalAutoencoder(input_dim, hidden_dim, latent_dim)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
 # Training loop
-num_epochs = 10
+num_epochs = 1000000
 for epoch in range(num_epochs):
     model.train()
     train_loss = 0
@@ -111,9 +136,12 @@ with torch.no_grad():
         test_loss += vae_loss_function(recon, data, mu, logvar).item()
 print(f'Test loss: {test_loss / len(test_loader.dataset)}')
 
+# save the full model
+torch.save(model, 'molytica_m/elements/vae.pth')
+
 # Example of using the model for inference
 with torch.no_grad():
-    sample = train_data[0][0].unsqueeze(0)  # Take the first data point
+    sample = test_data[0][0].unsqueeze(0)  # Take the first data point
     reconstructed, _, _ = model(sample)
     print('Original:', sample)
     print('Reconstructed:', reconstructed)
