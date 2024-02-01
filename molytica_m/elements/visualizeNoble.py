@@ -1,0 +1,59 @@
+import json
+import torch
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from molytica_m.elements.vae import VariationalAutoencoder
+
+# Load the trained model
+model = torch.load('molytica_m/elements/vae.pth')
+model.eval()
+
+# Load JSON data
+with open("molytica_m/elements/element_vectors.json", "r") as f:
+    atom_data = json.load(f)
+
+# Calculate means for each feature, excluding None
+feature_sums = [0] * len(next(iter(atom_data.values())))
+counts = [0] * len(feature_sums)
+
+for key in atom_data:
+    for i, value in enumerate(atom_data[key]):
+        if value is not None:
+            feature_sums[i] += value
+            counts[i] += 1
+
+means = [feature_sum / count if count > 0 else 0 for feature_sum, count in zip(feature_sums, counts)]
+
+# Replace None with mean values
+for key in atom_data:
+    atom_data[key] = [value if value is not None else means[i] for i, value in enumerate(atom_data[key])]
+
+# Extract latent space embeddings
+latent_space_embeddings = []
+
+for key in atom_data:
+    with torch.no_grad():
+        data_point = torch.tensor(atom_data[key], dtype=torch.float).unsqueeze(0)
+        mu, _ = model.encode(data_point)  # Unpack two values instead of three
+        latent_space_embeddings.append((mu.squeeze().numpy(), key))
+
+# Noble gases list
+noble_gases = ['He', 'Ne', 'Ar', 'Kr', 'Xe', 'Rn']
+
+# Prepare the 3D scatter plot
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+
+for embedding, label in latent_space_embeddings:
+    if label in noble_gases:
+        # Mark noble gases with a different color, e.g., red
+        ax.scatter(embedding[0], embedding[1], embedding[2], color='red')
+    else:
+        ax.scatter(embedding[0], embedding[1], embedding[2], color='blue')
+    ax.text(embedding[0], embedding[1], embedding[2], '%s' % label, size=10, zorder=1)
+
+ax.set_xlabel('Latent Dim 1')
+ax.set_ylabel('Latent Dim 2')
+ax.set_zlabel('Latent Dim 3')
+
+plt.show()
