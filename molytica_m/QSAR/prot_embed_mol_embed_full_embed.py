@@ -264,7 +264,7 @@ optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop with progress bar and SMA counters
 num_epochs = 100  # Number of epochs
-sma_window = 20000//64  # Window size for SMA calculations
+sma_window = 20000 // 64  # Window size for SMA calculations
 val_max_acc = 0
 for epoch in range(num_epochs):
     model.train()
