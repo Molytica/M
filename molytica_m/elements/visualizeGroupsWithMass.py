@@ -73,13 +73,13 @@ group_colors = {
 
 # Prepare data for the Plotly 3D scatter plot
 scatter_data = []
-size_factor = 0.07
+size_factor = 0.4
 text_font = dict(family="Arial, sans-serif", size=12, color="black")  # Example text styling
 
 for embedding, label in latent_space_embeddings:
     group = find_group(label)
     color = group_colors[group]
-    size = atomic_masses[label] * size_factor
+    size = (atomic_masses[label] * size_factor) ** (1/3)
     scatter_data.append(go.Scatter3d(
         x=[embedding[0]],
         y=[embedding[1]],
