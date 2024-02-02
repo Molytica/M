@@ -12,6 +12,8 @@ def generate_alpha_fold_data(af_data_folder_path="data/curated_chembl/alpha_fold
 def get_all_alphafold_uniprot_ids(af_data_folder_path="data/curated_chembl/alpha_fold_data/"):
     af_uniprots = {}
     for folder in os.listdir(af_data_folder_path):
+        if not os.path.isdir(os.path.join(af_data_folder_path, folder)):
+            continue
         af_uniprots[folder] = set()
     
         for file_name in os.listdir(os.path.join(af_data_folder_path, folder)):
