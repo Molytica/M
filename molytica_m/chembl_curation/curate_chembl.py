@@ -1115,7 +1115,7 @@ def main():
     #create_PROTEIN_metadata(target_protein_metadata_output_path)
     #create_SMILES_id_mappings(curated_chembl_db_path, target_output_path)
     #create_SMILES_metadata(target_output_path)
-    #create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
+    create_PROTEIN_sequences(alphafold_folder_path, target_output_path)
     if False: # Manually adjust this to create or not create the SMILES graphs
         create_SMILES_graphs(target_output_path)
     else:

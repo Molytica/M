@@ -47,7 +47,12 @@ def get_neighbors_with_embeddings(atom, atom_cloud):
     # Calculate Euclidean distances using only the coordinates (last 3 columns)
     distances = distance.cdist(atom_cloud[:, 3:], np.array([atom[3:]]), 'euclidean')
     distances = distances.flatten()
-    nearest_indices = np.argsort(distances)[1:6]  # Skip the closest (itself)
+    nearest_indices = np.argsort(distances)[0:6]  # Skip the closest (itself)
+
+    # Calculate relative positions by subtracting the atom's position from the neighbors' positions
+    relative_positions = atom_cloud[nearest_indices, 3:] - atom[3:]
+    atom_cloud[nearest_indices, 3:] = relative_positions
+
     return atom_cloud[nearest_indices]
 
 
@@ -78,33 +83,39 @@ def get_human_atom_cloud(uniprot_id, species='HUMAN'):
     
     return atom_data
 
-
-def get_neighbors(atom, atom_cloud):
-    # Calculate Euclidean distances between the given atom and all atoms in the cloud
-    distances = distance.cdist(atom_cloud[:, 1:], np.array([atom[1:]]), 'euclidean')
-    # Flatten the distances array for easier indexing
-    distances = distances.flatten()
-    # Argsort the distances, get indices of the five closest atoms, excluding the atom itself
-    nearest_indices = np.argsort(distances)[1:6]  # Skip the first index as it's the atom itself
-    # Return the five closest atoms
-    return atom_cloud[nearest_indices]
-
-
 def get_atom_5_in_random_order():
     all_human_uniprot_ids = alpha_fold_tools.get_all_alphafold_uniprot_ids()["HUMAN"]
 
-    for human_uniprot_id in random.sample(all_human_uniprot_ids, 20504):
+    data_id = 0
+    
+
+    while True:
+        human_uniprot_id = random.choice(all_human_uniprot_ids)
         atom_cloud = get_human_atom_cloud(human_uniprot_id)
+
+        if atom_cloud is None:
+            continue
+
         # Replace atom types in the cloud with their embeddings
         atom_cloud_with_embeddings = replace_atom_types_with_embeddings(atom_cloud)
 
-        for atom in random.sample(list(atom_cloud_with_embeddings), len(atom_cloud_with_embeddings)):
+        for atom in random.sample(list(atom_cloud_with_embeddings), 1):
             neighbors = get_neighbors_with_embeddings(atom, atom_cloud_with_embeddings)
             # Now `neighbors` includes embeddings in the first 3 columns and coordinates in the next 3
 
-            # Further processing and saving of the neighbors can be done here
-            print(neighbors)
+            print(f"Saving data for {human_uniprot_id} ({data_id})")
+            save_path = f"data/curated_chembl/5_1_vae/prot/{data_id}.h5"
 
+            if not os.path.exists(os.path.dirname(save_path)):
+                os.makedirs(os.path.dirname(save_path))
 
+            with h5py.File(save_path, 'w') as h5file:
+                h5file.create_dataset('5_1_vae_data', data=neighbors)
+
+            data_id += 1
+            if data_id == 100000:
+                return
+
+            
 if __name__ == "__main__":
     get_atom_5_in_random_order()
