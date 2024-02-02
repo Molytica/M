@@ -3,6 +3,8 @@ import numpy as np
 from scipy.spatial import distance
 import random
 import json
+import h5py
+import os
 
 with open("molytica_m/elements/element_embeddings_3D.json", "r") as f:
     element_embeddings = json.load(f)
@@ -61,11 +63,20 @@ def get_embedding_from_int(atom_int):
     # Retrieve and return the embedding from the element_embeddings dictionary
     return element_embeddings.get(atom_type)
 
-def get_human_atom_cloud(human_uniprot_id):
-    atom_cloud = np.zeros((2500, 4))
-    atom_cloud[:, 0] = np.random.randint(0, 18, size=2500)
-    atom_cloud[:, 1:] = np.random.randn(2500, 3)
-    return atom_cloud
+def get_human_atom_cloud(uniprot_id, species='HUMAN'):
+    # Define the path to where the atom data is saved
+    file_path = os.path.join("data/curated_chembl/opt_af_coords", species, uniprot_id + ".h5")
+    
+    # Check if the file exists
+    if not os.path.exists(file_path):
+        print(f"No data found for {uniprot_id} in {species}")
+        return None
+
+    # Read the atom data from the .h5 file
+    with h5py.File(file_path, 'r') as h5file:
+        atom_data = h5file['atom_data'][:]
+    
+    return atom_data
 
 
 def get_neighbors(atom, atom_cloud):
