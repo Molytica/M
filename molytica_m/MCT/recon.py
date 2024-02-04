@@ -4,7 +4,7 @@ import h5py
 import os
 import random
 from torch.utils.data import Dataset
-from molytica_m.MCT.5_1_vae_prot_t import VAE
+from molytica_m.MCT._5_1_vae_prot_t import VAE
 
 class H5Dataset(Dataset):
     def __init__(self, root_dir):
