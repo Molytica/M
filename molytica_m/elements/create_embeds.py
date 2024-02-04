@@ -3,7 +3,7 @@ import torch
 from molytica_m.elements.vae import VariationalAutoencoder
 
 # Load the trained model
-model = torch.load('molytica_m/elements/vae_6D.pth')
+model = torch.load('molytica_m/elements/vae_3D_full.pth')
 model.eval()
 
 # Load JSON data
@@ -36,7 +36,7 @@ for key in atom_data:
         element_embeddings[key] = mu.squeeze().tolist()  # Convert to list for JSON serialization
 
 # Save the embeddings as JSON
-file_name = 'molytica_m/elements/element_embeddings_6D.json'
+file_name = 'molytica_m/elements/element_embeddings_3D_full.json'
 with open(file_name, 'w') as f:
     json.dump(element_embeddings, f)
 

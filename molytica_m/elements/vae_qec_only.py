@@ -62,7 +62,7 @@ def vae_loss_function(recon_x, x, mu, logvar):
 
 if __name__ == "__main__":
     # Load JSON data
-    with open("molytica_m/elements/element_vectors.json", "r") as f:
+    with open("molytica_m/elements/element_vectors_qec_only.json", "r") as f:
         atom_data = json.load(f)
 
     # Calculate means for each feature, excluding None
@@ -118,7 +118,7 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=1e-3)
 
     # Training loop
-    num_epochs = 100000
+    num_epochs = 1000
     for epoch in range(num_epochs):
         model.train()
         train_loss = 0
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     print(f'Test loss: {test_loss / len(test_loader.dataset)}')
 
     # save the full model
-    torch.save(model, 'molytica_m/elements/vae42.pth')
+    torch.save(model, 'molytica_m/elements/vae_qec_only_1k.pth')
 
     # Example of using the model for inference
     with torch.no_grad():

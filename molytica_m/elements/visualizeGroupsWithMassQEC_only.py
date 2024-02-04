@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from molytica_m.elements.vae import VariationalAutoencoder
 
 # Load the trained model
-model = torch.load('molytica_m/elements/vae.pth')
+model = torch.load('molytica_m/elements/vae_qec_only_1k.pth')
 model.eval()
 
 # Load JSON data
@@ -13,6 +13,9 @@ with open("molytica_m/elements/element_vectors.json", "r") as f:
 
 # Extract atomic masses and store in a dictionary
 atomic_masses = {key: atom_data[key][2] for key in atom_data}
+
+with open("molytica_m/elements/element_vectors_qec_only.json", "r") as f:
+    atom_data = json.load(f)
 
 # Calculate means for each feature, excluding None
 feature_sums = [0] * len(next(iter(atom_data.values())))
