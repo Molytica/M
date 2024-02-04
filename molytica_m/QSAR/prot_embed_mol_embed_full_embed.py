@@ -155,8 +155,8 @@ train_size = int(dataset_size * 0.8)
 val_size = dataset_size - train_size
 train_dataset, val_dataset = random_split(chembl_dataset, [train_size, val_size])
 
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=14)
-val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=14)
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=16)
+val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False, num_workers=16)
 
 def calculate_class_weights(dataset):
     label_counts = {}
@@ -172,7 +172,7 @@ class_weights = class_weights.to(device)
 print("Class Weights:", class_weights)
 
 class CustomTransformerLayer(nn.Module):
-    def __init__(self, dim_model, dim_feedforward):
+    def __init__(self, dim_model, dim_feedforward, dropout_rate=0.1):
         super(CustomTransformerLayer, self).__init__()
         # Define multi-head attention mechanisms with different numbers of heads
         self.attention1 = nn.MultiheadAttention(dim_model, 4)
@@ -188,7 +188,7 @@ class CustomTransformerLayer(nn.Module):
         )
         
         # Add 50% dropout layer
-        self.dropout = nn.Dropout(0.5)
+        self.dropout = nn.Dropout(dropout_rate)
 
     def forward(self, src):
         src2 = self.norm1(src)
@@ -204,7 +204,7 @@ class CustomTransformerLayer(nn.Module):
         return src
 
 class TransformerModel(nn.Module):
-    def __init__(self, input_dim, dim_feedforward, num_classes, num_layers=5, dropout_rate=0.1):
+    def __init__(self, input_dim, dim_feedforward, num_classes, num_layers=5, dropout_rate=0.5):
         super(TransformerModel, self).__init__()
         self.embedding = nn.Linear(input_dim, dim_feedforward)
         
@@ -267,10 +267,12 @@ model.to(device)
 # Define loss function and optimizer
 # Use BCEWithLogitsLoss for one-hot encoded labels
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.0005)
+# Trial 1
+# Lr = 0.01
+optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training loop with progress bar and SMA counters
-num_epochs = 3000  # Number of epochs
+num_epochs = 300  # Number of epochs
 sma_window = 20000 // 64  # Window size for SMA calculations
 val_max_acc = 0
 for epoch in range(num_epochs):
@@ -347,5 +349,5 @@ for epoch in range(num_epochs):
     avg_val_acc = np.mean(val_accuracy_sma)
     if avg_val_acc > val_max_acc:
         print(f"New best validation accuracy: {avg_val_acc:.4f}, saving model.")
-        torch.save(model, 'molytica_m/QSAR/TransQSAR1.pth')  # Save the entire model
+        torch.save(model, 'molytica_m/QSAR/TransQSAR2.pth')  # Save the entire model
         val_max_acc = avg_val_acc
