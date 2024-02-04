@@ -204,20 +204,24 @@ class CustomTransformerLayer(nn.Module):
         return src
 
 class TransformerModel(nn.Module):
-    def __init__(self, input_dim, dim_feedforward, num_classes, num_layers=2):
+    def __init__(self, input_dim, dim_feedforward, num_classes, num_layers=5, dropout_rate=0.1):
         super(TransformerModel, self).__init__()
         self.embedding = nn.Linear(input_dim, dim_feedforward)
         
+        # Optionally, add dropout after embedding
+        self.embedding_dropout = nn.Dropout(dropout_rate)
+        
         self.layers = nn.ModuleList([
-            CustomTransformerLayer(dim_feedforward, dim_feedforward)
+            CustomTransformerLayer(dim_feedforward, dim_feedforward, dropout_rate=dropout_rate)
             for _ in range(num_layers)
         ])
         
-        # Define the feedforward layers
+        # Define the feedforward layers with dropout after ReLU
         self.feed_forward_layers = nn.ModuleList([
             nn.Sequential(
                 nn.Linear(dim_feedforward, dim_feedforward),
                 nn.ReLU(),
+                nn.Dropout(dropout_rate),  # Add dropout here
             )
             for _ in range(3)  # Number of feedforward layers
         ])
@@ -227,6 +231,7 @@ class TransformerModel(nn.Module):
 
     def forward(self, x):
         x = self.embedding(x)
+        x = self.embedding_dropout(x)  # Apply dropout after embedding
         
         for layer in self.layers:
             x = layer(x)
@@ -238,7 +243,6 @@ class TransformerModel(nn.Module):
         # Apply the output layer
         x = self.output_layer(x)
         
-        # Removed softmax activation
         return x  # Return raw logits
 
 
@@ -247,23 +251,26 @@ input_dim = 1024 * 512 + 600  # Assuming 1024x512 for protein, 600 for molecule
 # Update the dimensions of the feedforward layers
 dim_feedforward = 512  # Adjust this based on your requirements
 num_classes = 7  # Number of classes for the output layer
-num_layers = 2  # Number of transformer layers
+num_layers = 5  # Number of transformer layers
 
 # Initialize the model
+print("Creating model")
 model = TransformerModel(input_dim=input_dim, 
                          dim_feedforward=dim_feedforward, 
                          num_classes=num_classes, 
                          num_layers=num_layers)
 
+#print("Loading model")
+#model = torch.load('molytica_m/QSAR/TransQSAR2.pth')
 model.to(device)
 
 # Define loss function and optimizer
 # Use BCEWithLogitsLoss for one-hot encoded labels
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+optimizer = optim.Adam(model.parameters(), lr=0.0005)
 
 # Training loop with progress bar and SMA counters
-num_epochs = 100  # Number of epochs
+num_epochs = 3000  # Number of epochs
 sma_window = 20000 // 64  # Window size for SMA calculations
 val_max_acc = 0
 for epoch in range(num_epochs):
