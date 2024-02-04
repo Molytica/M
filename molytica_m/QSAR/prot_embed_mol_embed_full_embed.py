@@ -349,5 +349,7 @@ for epoch in range(num_epochs):
     avg_val_acc = np.mean(val_accuracy_sma)
     if avg_val_acc > val_max_acc:
         print(f"New best validation accuracy: {avg_val_acc:.4f}, saving model.")
-        torch.save(model, 'molytica_m/QSAR/TransQSAR2.pth')  # Save the entire model
+        if not os.path.exists('data/QSAR'):
+            os.makedirs('data/QSAR')
+        torch.save(model, 'data/QSAR/TransQSAR2.pth')  # Save the entire model
         val_max_acc = avg_val_acc
